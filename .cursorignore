@@ -1,0 +1,10 @@
+/libs/
+
+/main/build
+/main/install
+/main/log
+
+.gitignore
+.cursorignore
+.cursorrules
+.cursorignore

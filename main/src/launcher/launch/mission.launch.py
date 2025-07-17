@@ -1,0 +1,164 @@
+import os
+
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.actions import Node
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch_ros.substitutions import FindPackageShare
+
+def generate_launch_description():
+    mission_param = os.path.join(
+                        get_package_share_directory('launcher'),
+                        'config',
+                        'mission.yaml'
+                    )
+
+    sensor_param = os.path.join(
+                        get_package_share_directory('launcher'),
+                        'config',
+                        'sensor.yaml'
+                    )
+    
+    vision_param = os.path.join(
+                        get_package_share_directory('launcher'),
+                        'config',
+                        'vision.yaml'
+                    )
+    
+    return LaunchDescription([
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource([
+                PathJoinSubstitution([
+                    FindPackageShare('launcher'), 'launch', 'mavros.launch.py'
+                ])
+            ])
+        ),
+        
+        
+        # MISSION PACKAGE
+        
+        Node(
+            package='mission',
+            executable='pose_planner',
+            name='planner_node',
+            output='screen',
+            emulate_tty=True,
+            parameters=[mission_param]
+        ),
+        # Node(
+        #     package='mission',
+        #     executable='planner2',
+        #     name='planner_node',
+        #     output='screen',
+        #     emulate_tty=True,
+        #     parameters=[mission_param]
+        # ),
+        
+        
+        # MONITORING PACKAGE
+        
+        Node(
+            package='monitoring',
+            executable='battery',
+            name='battery_node',
+            output='screen',
+            emulate_tty=True
+        ),
+        Node(
+            package='monitoring',
+            executable='cpu',
+            name='cpu_node',
+            output='screen',
+            emulate_tty=True
+        ),
+        Node(
+            package='monitoring',
+            executable='gps',
+            name='gps_node',
+            output='screen',
+            emulate_tty=True
+        ),
+        Node(
+            package='monitoring',
+            executable='gpu',
+            name='gpu_node',
+            output='screen',
+            emulate_tty=True
+        ),
+        
+        
+        # NAVIGATION PACKAGE
+        
+        Node(
+            package='navigation',
+            executable='gps_pose',
+            name='gps_nav',
+            output='screen',
+            emulate_tty=True,
+            parameters=[mission_param]
+        ),
+        Node(
+            package='navigation',
+            executable='vision_nav',
+            name='vision_nav',
+            output='screen',
+            emulate_tty=True,
+            parameters=[vision_param]
+        ),
+        
+        
+        # PERCEPTION PACKAGE
+        
+        Node(
+            package='perception',
+            executable='vision',
+            name='vision_node',
+            output='screen',
+            emulate_tty=True,
+            parameters=[vision_param]
+        ),
+        
+        
+        # SENSOR PACKAGE
+        
+        Node(
+            package='sensor',
+            executable='remote',
+            name='remote_node',
+            output='screen',
+            emulate_tty=True,
+            parameters=[sensor_param]
+        ),
+        Node(
+            package='rplidar_ros',
+            executable='rplidar_node',
+            name='rplidar_node',
+            output='screen',
+            emulate_tty=True,
+            parameters=[sensor_param]
+        ),
+        Node(
+            package='sensor',
+            executable='rplidar',
+            name='lidar_node',
+            output='screen',
+            emulate_tty=True,
+            parameters=[sensor_param]
+        ),
+        Node(
+            package='sensor',
+            executable='state',
+            name='state_node',
+            output='screen',
+            emulate_tty=True
+        ),
+        Node(
+            package='sensor',
+            executable='compass',
+            name='compass_node',
+            output='screen',
+            emulate_tty=True
+        )
+    ])
