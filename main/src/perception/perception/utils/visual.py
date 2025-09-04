@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 
 class BBoxVisualization():
-    def __init__(self, cls_dict):
+    def __init__ (self, cls_dict):
         self.cls_dict = cls_dict  # ['blue_box', 'green_box', 'green_buoy', 'green_dock', 'red_buoy', 'red_dock']
         
         # Constants
@@ -144,7 +144,7 @@ class BBoxVisualization():
         
                 cv2.line(frame, (int(width/2), int(height/2)), midpoints[detected_cls], self.WHITE_COLOR, self.THICKNESS)
                 cv2.circle(frame, midpoints[detected_cls], self.CIRCLE_SIZE, self.RED_COLOR, -1)
-         
+
                 if (a < int(width/2) - self.midpoint_deadzone):
                     cv2.putText(frame, "TURN", (560, 30), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
                     cv2.putText(frame, "LEFT", (560, 60), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
@@ -156,7 +156,7 @@ class BBoxVisualization():
             if detected_cls == "blue_box":
                 a, b = midpoints[detected_cls]
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
-          
+
                 cv2.line(frame, (int(width/2), int(height/2)), midpoints[detected_cls], self.WHITE_COLOR, self.THICKNESS)
                 cv2.circle(frame, midpoints[detected_cls], self.CIRCLE_SIZE, self.RED_COLOR, -1)
         

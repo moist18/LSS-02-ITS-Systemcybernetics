@@ -5,7 +5,7 @@ class BBoxVisualization():
     def __init__(self, cls_dict):
         self.cls_dict = cls_dict  # ['blue_box', 'green_box', 'green_buoy', 'green_dock', 'red_buoy', 'red_dock']
 
-    def processor(self, frame, fps, mission, docking, left_buoy, right_buoy, boxes, confs, clss, width, height, batas_bawah, batas_tengah, batas_atas):
+    def processor (self, frame, fps, mission, docking, left_buoy, right_buoy, boxes, confs, clss, width, height, batas_bawah, batas_tengah, batas_atas):
         is_finish = False
         connector_midpoint = None
         detected_cls = ''

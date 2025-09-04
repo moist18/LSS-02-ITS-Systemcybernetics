@@ -16,7 +16,7 @@ class DateNode(Node):
         # Timer for publishing at 1Hz
         self.loop_timer = self.create_timer(1.0, self.data_publisher)
 
-    def data_publisher(self):
+    def data_publisher (self):
         now = datetime.now()
         day = now.strftime("%A")
         date = now.strftime("%d %B %Y")

@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))
 
 class RecorderNode(Node):
-    def __init__(self):
+    def __init__ (self):
         super().__init__('recorder_node')
         
         # Variable Initialization
