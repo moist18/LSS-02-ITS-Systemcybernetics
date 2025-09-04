@@ -17,7 +17,8 @@ ASV-2025 is a comprehensive ROS 2 autonomous surface vehicle (ASV) system design
 #### Computer Vision & AI
 - **OpenCV 4.x**: Computer vision processing and image manipulation
 - **YOLO (Ultralytics)**: Real-time object detection and classification
-- **TensorRT**: GPU-accelerated inference optimization
+- **RKNN Runtime**: NPU-accelerated inference optimization for Orange Pi 5 Pro
+- **TensorRT**: GPU-accelerated inference optimization (legacy support)
 - **cv_bridge**: OpenCV-ROS 2 integration library
 
 #### Navigation & Control
@@ -131,33 +132,39 @@ The project is organized into two main directories:
 ### 3. Perception Package
 
 **Core Components**:
-- `vision.py`: YOLO-based object detection and vision processing
+- `vision.py`: RKNN-optimized YOLO object detection with multi-threading
 - `surface.cpp`: Surface imaging and processing
 - `underwater.cpp`: Underwater imaging and processing
-- `record.py`: Video recording and data logging
 
 **Functionality**:
-- YOLO-based object detection for buoys and docking stations
-- PID-controlled vision navigation with RC override
-- Multi-mission vision processing (Floating Ball, Surface/Underwater Imaging, Docking)
-- Real-time video processing with FPS monitoring
+- **RKNN-Accelerated Vision**: Multi-threaded YOLO detection utilizing Orange Pi 5 Pro NPU
+- **Real-time Processing**: 3x parallel model instances with frame buffering
+- **PID-controlled Navigation**: Vision-based RC override with configurable parameters
+- **Multi-mission Support**: Floating Ball, Surface/Underwater Imaging, Docking modes
 
 **Key Features**:
-- TensorRT model optimization for real-time inference
-- Mission-specific object detection and tracking
-- Configurable PID parameters for smooth navigation
-- Surface and underwater imaging capture
-- Integrated LIDAR coordination for precise positioning
+- **NPU Optimization**: Full utilization of 3 NPU cores for maximum performance
+- **Threading Architecture**: Separate worker threads for each model instance
+- **Configurable Detection**: Runtime-adjustable confidence, IoU, and image size parameters
+- **Model Warm-up**: Cold start reduction for consistent performance
+- **Professional Logging**: Comprehensive performance monitoring and error handling
+- **Camera Optimization**: MJPEG codec with minimal buffering for low latency
 
 ### 4. Sensor Package
 
 **Components**:
-- **remote.cpp**: RC input processing and failsafe management
+- **arduino.cpp**: Enhanced Arduino integration with professional waypoint management
 - **rplidar.cpp**: LIDAR data processing and obstacle detection
 - **state.cpp**: System state monitoring and reporting
 - **compass.cpp**: Compass-based heading control
 - **gps.cpp**: GPS coordinate processing
-- **emergency.cpp**: Emergency stop and safety protocols
+
+**Arduino Integration Features**:
+- **Timestamped Waypoint Files**: Automatic generation of `waypoints_YYYYMMDD_HHMMSS.txt`
+- **YAML Structure Output**: Professional waypoint format with navigation hierarchy
+- **Clean Serial Communication**: Simplified and maintainable code structure
+- **Future-Ready Design**: No data range restrictions for additional sensors
+- **Robust Error Handling**: Professional logging and exception management
 
 ### 5. Monitoring Package
 
@@ -292,17 +299,19 @@ cd main/src/perception && python -m flake8 perception/ --exclude=__pycache__
 - **Hardware Interfaces**: Serial port and communication settings
 
 ### Vision Configuration (`vision.yaml`)
+- **Detection Parameters**: Configurable confidence, IoU threshold, and image size
 - **PID Parameters**: Vision navigation control gains
-- **Model Configuration**: YOLO detection model settings
+- **RC Control**: Throttle values and control ranges
 - **Camera Settings**: Resolution and capture parameters
 
 ## Hardware Integration
 
 ### Supported Hardware
 - **Flight Controller**: ArduPilot-compatible autopilot via MAVLink
+- **Compute Platform**: Orange Pi 5 Pro with NPU acceleration (recommended)
 - **LIDAR**: RPLidar A1/A2/A3 series
 - **Camera**: USB camera for vision processing
-- **RC Receiver**: Standard RC input for manual override
+- **RC Receiver**: Arduino-based RC input processing
 - **GPS**: MAVLink-compatible GPS module
 
 ### Communication Protocols
@@ -338,14 +347,14 @@ cd main/src/perception && python -m flake8 perception/ --exclude=__pycache__
 ### Real-Time Requirements
 - **Mission Planning**: 20ms update cycle (50 Hz)
 - **Navigation Control**: 20ms update cycle (50 Hz)
-- **Vision Processing**: 20 Hz with TensorRT optimization
+- **Vision Processing**: 20 Hz with RKNN NPU acceleration
 - **Sensor Monitoring**: 1 Hz for non-critical systems
 
 ### Resource Utilization
 - **CPU**: Optimized for multi-core processing
-- **Memory**: Efficient image processing with cv_bridge
-- **GPU**: TensorRT acceleration for vision inference
-- **Network**: Minimal latency ROS 2 communication
+- **NPU**: Full utilization of Orange Pi 5 Pro's 3 NPU cores
+- **Memory**: Efficient frame buffering and processing
+- **Network**: Minimal latency ROS 2 communication with QoS profiles
 
 ## Safety and Reliability
 
@@ -365,12 +374,13 @@ cd main/src/perception && python -m flake8 perception/ --exclude=__pycache__
 
 ### Planned Features
 - **Multi-Vehicle Coordination**: Fleet management capabilities
-- **Advanced Perception**: Enhanced object detection and tracking
-- **Machine Learning**: Adaptive navigation algorithms
+- **Advanced Machine Learning**: Adaptive navigation algorithms
+- **Enhanced NPU Integration**: Additional AI acceleration features
 - **Simulation Integration**: Gazebo-based testing environment
 
 ### Scalability Considerations
 - **Modular Architecture**: Easy component addition/removal
-- **Configuration Management**: Centralized parameter system
-- **Performance Optimization**: GPU acceleration and parallel processing
+- **Configuration Management**: Centralized parameter system with QoS profiles
+- **Performance Optimization**: NPU acceleration and parallel processing
+- **Hardware Flexibility**: Support for various compute platforms
 - **Documentation**: Comprehensive developer documentation

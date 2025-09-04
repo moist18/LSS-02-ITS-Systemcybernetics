@@ -345,7 +345,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr global_pos_sub;
 
     // Rate Timer Declaration
-    rclcpp::TimerBase::SharedPtr timer;
+    rclcpp::TimerBase::SharedPtr loop_timer;
 
     // Serial Declaration
     serial::Serial ser;

@@ -84,9 +84,9 @@ private:
             if (!std::isnan(this->prev_lat) && !std::isnan(this->prev_lon)) {
                 // Calculate and publish COG
                 double cog_value = calculate_cog(this->current_lat, this->current_lon);
-                auto cog_msg = std_msgs::msg::Float64();
-                cog_msg.data = cog_value;
-                this->cog_pub->publish(cog_msg);
+                auto cog_data = std_msgs::msg::Float64();
+                cog_data.data = cog_value;
+                this->cog_pub->publish(cog_data);
 
                 // Calculate and publish SOG
                 double sog_value = this->calculate_sog(this->current_lat, this->current_lon, this->current_time);
@@ -98,8 +98,8 @@ private:
                 sog_data.data = { static_cast<float>(kmh_value), static_cast<float>(knot_value) };
                 this->sog_pub->publish(sog_data);
 
-                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Current COG: %.2f°", cog);
-                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Current SOG: %.2f km/h", sog_msg.data[0]);
+                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Current COG: %.2f°", cog_value);
+                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Current SOG: %.2f km/h", sog_data.data[0]);
             }
 
             // Update previous values
