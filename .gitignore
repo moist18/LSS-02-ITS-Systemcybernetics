@@ -3,12 +3,7 @@
 */install/
 */log/
 
-# Environment
-.venv/
-.cursor/
-.cursorignore
-CLAUDE.md
-
 # Reference
 laptop/
 reference/
+CLAUDE.md
