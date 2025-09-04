@@ -3,11 +3,11 @@
 #include <mavros_msgs/msg/state.hpp>
 #include <memory>
 #include <mutex>
+#include <rclcpp/qos.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/string.hpp>
-#include <yaml-cpp/yaml.h>
 
 using namespace std::chrono_literals;
 
@@ -15,7 +15,8 @@ class PlannerNode : public rclcpp::Node {
 public:
     PlannerNode()
         : Node("planner_node") {
-        // Parameter Declaration - using individual parameters instead of nested maps
+
+        // Parameter Declaration
         this->declare_parameter("phase_duration.A.normal", 30.0);
         this->declare_parameter("phase_duration.A.compass", 15.0);
         this->declare_parameter("phase_duration.A.vision", 20.0);
@@ -24,63 +25,62 @@ public:
         this->declare_parameter("phase_duration.B.vision", 20.0);
 
         // Subscriber Initialization
-        state_sub = this->create_subscription<mavros_msgs::msg::State>(
-            "/mavros/state", 10, std::bind(&PlannerNode::state_callback, this, std::placeholders::_1));
-        mode_sub = this->create_subscription<std_msgs::msg::Bool>(
-            "/robot/mode", 10, std::bind(&PlannerNode::mode_callback, this, std::placeholders::_1));
-        curr_wp_sub = this->create_subscription<std_msgs::msg::Int32>(
-            "/robot/position/waypoint", 10, std::bind(&PlannerNode::curr_wp_callback, this, std::placeholders::_1));
-        compass_success_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/compass/success", 10,
-            std::bind(&PlannerNode::compass_success_callback, this, std::placeholders::_1));
-        left_buoy_sub = this->create_subscription<std_msgs::msg::String>(
-            "/detect/left_buoy", 10, std::bind(&PlannerNode::left_buoy_callback, this, std::placeholders::_1));
-        right_buoy_sub = this->create_subscription<std_msgs::msg::String>(
-            "/detect/right_buoy", 10, std::bind(&PlannerNode::right_buoy_callback, this, std::placeholders::_1));
-        trajectory_sub = this->create_subscription<std_msgs::msg::String>(
-            "/robot/trajectory", 10, std::bind(&PlannerNode::trajectory_callback, this, std::placeholders::_1));
-        surface_mission_sub = this->create_subscription<std_msgs::msg::Bool>(
-            "/robot/mission/surface", 10, std::bind(&PlannerNode::surface_callback, this, std::placeholders::_1));
-        underwater_mission_sub = this->create_subscription<std_msgs::msg::Bool>(
-            "/robot/mission/underwater", 10, std::bind(&PlannerNode::underwater_callback, this, std::placeholders::_1));
-        reset_mission_sub = this->create_subscription<std_msgs::msg::Bool>(
-            "/mission/reset", 10, std::bind(&PlannerNode::reset_mission_callback, this, std::placeholders::_1));
+        this->state_sub = this->create_subscription<mavros_msgs::msg::State>("/mavros/state", rclcpp::SensorDataQoS(), std::bind(&PlannerNode::state_callback, this, std::placeholders::_1));
+        this->mode_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&PlannerNode::mode_callback, this, std::placeholders::_1));
+        this->curr_wp_sub = this->create_subscription<std_msgs::msg::Int32>("/robot/position/waypoint", rclcpp::ServicesQoS(), std::bind(&PlannerNode::curr_wp_callback, this, std::placeholders::_1));
+        this->compass_success_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/compass/success", rclcpp::ServicesQoS(), std::bind(&PlannerNode::compass_success_callback, this, std::placeholders::_1));
+        this->left_buoy_sub = this->create_subscription<std_msgs::msg::String>("/detect/left_buoy", rclcpp::ServicesQoS(), std::bind(&PlannerNode::left_buoy_callback, this, std::placeholders::_1));
+        this->right_buoy_sub = this->create_subscription<std_msgs::msg::String>("/detect/right_buoy", rclcpp::ServicesQoS(), std::bind(&PlannerNode::right_buoy_callback, this, std::placeholders::_1));
+        this->trajectory_sub = this->create_subscription<std_msgs::msg::String>("/robot/trajectory", rclcpp::ServicesQoS(), std::bind(&PlannerNode::trajectory_callback, this, std::placeholders::_1));
+        this->surface_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mission/surface", rclcpp::ServicesQoS(), std::bind(&PlannerNode::surface_callback, this, std::placeholders::_1));
+        this->underwater_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mission/underwater", rclcpp::ServicesQoS(), std::bind(&PlannerNode::underwater_callback, this, std::placeholders::_1));
+        this->reset_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/mission/reset", rclcpp::ServicesQoS(), std::bind(&PlannerNode::reset_mission_callback, this, std::placeholders::_1));
 
         // Publisher Initialization
-        setmode_pub = this->create_publisher<std_msgs::msg::String>("/robot/setmode", 10);
-        gps_control_pub = this->create_publisher<std_msgs::msg::Bool>("/robot/control/gps", 10);
-        compass_control_pub = this->create_publisher<std_msgs::msg::Bool>("/robot/control/compass", 10);
-        vision_control_pub = this->create_publisher<std_msgs::msg::Bool>("/robot/control/vision", 10);
-        mission_pub = this->create_publisher<std_msgs::msg::String>("/robot/mission", 10);
-        left_buoy_pub = this->create_publisher<std_msgs::msg::String>("/detect/left_buoy", 10);
-        right_buoy_pub = this->create_publisher<std_msgs::msg::String>("/detect/right_buoy", 10);
+        this->setmode_pub = this->create_publisher<std_msgs::msg::String>("/robot/setmode", rclcpp::ServicesQoS());
+        this->gps_control_pub = this->create_publisher<std_msgs::msg::Bool>("/robot/control/gps", rclcpp::ServicesQoS());
+        this->compass_control_pub = this->create_publisher<std_msgs::msg::Bool>("/robot/control/compass", rclcpp::ServicesQoS());
+        this->vision_control_pub = this->create_publisher<std_msgs::msg::Bool>("/robot/control/vision", rclcpp::ServicesQoS());
+        this->mission_pub = this->create_publisher<std_msgs::msg::String>("/robot/mission", rclcpp::ServicesQoS());
+        this->left_buoy_pub = this->create_publisher<std_msgs::msg::String>("/detect/left_buoy", rclcpp::ServicesQoS());
+        this->right_buoy_pub = this->create_publisher<std_msgs::msg::String>("/detect/right_buoy", rclcpp::ServicesQoS());
 
-        // Timer Initialization
-        loop_timer = this->create_wall_timer(20ms, std::bind(&PlannerNode::run, this));
-        param_timer = this->create_wall_timer(1s, std::bind(&PlannerNode::param_callback, this));
+        // Rate Timer Initialization
+        this->loop_timer = this->create_wall_timer(20ms, std::bind(&PlannerNode::runner, this));
+        this->param_timer = this->create_wall_timer(1s, std::bind(&PlannerNode::param_callback, this));
+
+        // Parameter Setup
+        load_parameter();
+        RCLCPP_INFO(this->get_logger(), "GPS RTK Planner node started");
     }
 
 private:
-    void param_callback() {
-        std::lock_guard<std::mutex> lock(mutex);
+    void load_parameter() {
+        std::lock_guard<std::mutex> lock(this->mutex);
 
         // Load individual parameters instead of YAML
-        phase_duration.clear();
+        this->phase_duration.clear();
 
         // Load trajectory A parameters
         std::map<std::string, double> traj_A;
         traj_A["normal"] = this->get_parameter("phase_duration.A.normal").as_double();
         traj_A["compass"] = this->get_parameter("phase_duration.A.compass").as_double();
         traj_A["vision"] = this->get_parameter("phase_duration.A.vision").as_double();
-        phase_duration["A"] = traj_A;
+        this->phase_duration["A"] = traj_A;
 
         // Load trajectory B parameters
         std::map<std::string, double> traj_B;
         traj_B["normal"] = this->get_parameter("phase_duration.B.normal").as_double();
         traj_B["compass"] = this->get_parameter("phase_duration.B.compass").as_double();
         traj_B["vision"] = this->get_parameter("phase_duration.B.vision").as_double();
-        phase_duration["B"] = traj_B;
+        this->phase_duration["B"] = traj_B;
 
-        RCLCPP_INFO(this->get_logger(), "Parameters loaded successfully");
+        RCLCPP_INFO(this->get_logger(), "Parameters loaded - Trajectory A: normal=%.1fs, compass=%.1fs, vision=%.1fs", traj_A["normal"], traj_A["compass"], traj_A["vision"]);
+    }
+
+    void param_callback() {
+        this->load_parameter();
+        RCLCPP_INFO(this->get_logger(), "Parameters reloaded");
     }
 
     void state_callback(const mavros_msgs::msg::State::SharedPtr msg) {
@@ -144,11 +144,27 @@ private:
         }
     }
 
+    double get_phase_duration(const std::string& traj, const std::string& waypoint) {
+        // Default phase durations matching ROS 1 reference
+        std::map<std::string, std::map<std::string, double>> default_phase_duration
+            = { { "A", { { "0", 8.0 }, { "1", 8.0 }, { "2", 8.0 }, { "3", 3.0 }, { "4", 3.0 }, { "5", 0.0 }, { "6", 0.0 } } }, { "B", { { "0", 8.0 }, { "1", 8.0 }, { "2", 8.0 }, { "3", 3.0 }, { "4", 3.0 }, { "5", 0.0 }, { "6", 0.0 } } } };
+
+        if (phase_duration.find(traj) != phase_duration.end() && phase_duration[traj].find(waypoint) != phase_duration[traj].end()) {
+            return phase_duration[traj][waypoint];
+        }
+
+        if (default_phase_duration.find(traj) != default_phase_duration.end() && default_phase_duration[traj].find(waypoint) != default_phase_duration[traj].end()) {
+            return default_phase_duration[traj][waypoint];
+        }
+
+        return 0.0;
+    }
+
     void set_navigation_control(const std::string& mode, bool gps, bool compass, bool vision) {
         if (current_state.mode != mode) {
             auto mode_msg = std_msgs::msg::String();
             mode_msg.data = mode;
-            setmode_pub->publish(mode_msg);
+            this->setmode_pub->publish(mode_msg);
         }
 
         std::lock_guard<std::mutex> lock(mutex);
@@ -158,58 +174,33 @@ private:
 
         auto gps_msg = std_msgs::msg::Bool();
         gps_msg.data = gps;
-        gps_control_pub->publish(gps_msg);
+        this->gps_control_pub->publish(gps_msg);
 
         auto compass_msg = std_msgs::msg::Bool();
         compass_msg.data = compass;
-        compass_control_pub->publish(compass_msg);
+        this->compass_control_pub->publish(compass_msg);
 
         auto vision_msg = std_msgs::msg::Bool();
         vision_msg.data = vision;
-        vision_control_pub->publish(vision_msg);
+        this->vision_control_pub->publish(vision_msg);
     }
 
-    void gps_navigation() { set_navigation_control("GUIDED", true, false, false); }
+    void gps_navigation() {
+        set_navigation_control("GUIDED", true, false, false);
+    }
 
-    void compass_navigation() { set_navigation_control("GUIDED", false, true, false); }
+    void compass_navigation() {
+        set_navigation_control("GUIDED", false, true, false);
+    }
 
-    void vision_navigation() { set_navigation_control("MANUAL", false, false, true); }
+    void vision_navigation() {
+        set_navigation_control("MANUAL", false, false, true);
+    }
 
-    void mission_planner() {
+    void swap_buoy_colors() {
         std::lock_guard<std::mutex> lock(mutex);
-        auto now = this->now();
-
-        if (!auto_mode) {
-            RCLCPP_INFO_THROTTLE(
-                get_logger(), *get_clock(), 5000, "RC AUTO mode is disabled, waiting for RC AUTO mode...");
-            return;
-        }
-
-        // Get current time in seconds
-        double current_time = now.seconds();
-
-        switch (current_waypoint) {
-        case 0:
-            handle_waypoint_0(current_time);
-            break;
-        case 1:
-            handle_waypoint_1(current_time);
-            break;
-        case 2:
-            handle_waypoint_2(current_time);
-            break;
-        case 3:
-            handle_waypoint_3(current_time);
-            break;
-        case 4:
-            handle_waypoint_4();
-            break;
-        case 5:
-            handle_waypoint_5();
-            break;
-        default:
-            RCLCPP_WARN(get_logger(), "Invalid waypoint: %d", current_waypoint);
-        }
+        std::swap(left_buoy, right_buoy);
+        RCLCPP_INFO(get_logger(), "L-Buoy: '%s', R-Buoy: '%s'", left_buoy.c_str(), right_buoy.c_str());
     }
 
     void handle_waypoint_0(double current_time) {
@@ -338,47 +329,56 @@ private:
         }
     }
 
-    void handle_waypoint_4() { gps_navigation(); }
+    void handle_waypoint_4() {
+        gps_navigation();
+    }
 
     void handle_waypoint_5() {
         vision_navigation();
         RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "PLANNER_FINISH: Road to Finish!");
     }
 
-    double get_phase_duration(const std::string& traj, const std::string& waypoint) {
-        // Default phase durations matching ROS 1 reference
-        std::map<std::string, std::map<std::string, double>> default_phase_duration = {
-            { "A",
-                { { "0", 8.0 }, { "1", 8.0 }, { "2", 8.0 }, { "3", 3.0 }, { "4", 3.0 }, { "5", 0.0 }, { "6", 0.0 } } },
-            { "B",
-                { { "0", 8.0 }, { "1", 8.0 }, { "2", 8.0 }, { "3", 3.0 }, { "4", 3.0 }, { "5", 0.0 }, { "6", 0.0 } } }
-        };
-
-        if (phase_duration.find(traj) != phase_duration.end()
-            && phase_duration[traj].find(waypoint) != phase_duration[traj].end()) {
-            return phase_duration[traj][waypoint];
-        }
-
-        if (default_phase_duration.find(traj) != default_phase_duration.end()
-            && default_phase_duration[traj].find(waypoint) != default_phase_duration[traj].end()) {
-            return default_phase_duration[traj][waypoint];
-        }
-
-        return 0.0;
-    }
-
-    void swap_buoy_colors() {
+    void mission_planner() {
         std::lock_guard<std::mutex> lock(mutex);
-        std::swap(left_buoy, right_buoy);
-        RCLCPP_INFO(get_logger(), "L-Buoy: '%s', R-Buoy: '%s'", left_buoy.c_str(), right_buoy.c_str());
+        auto now = this->now();
+
+        if (!auto_mode) {
+            RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 5000, "RC AUTO mode is disabled, waiting for RC AUTO mode...");
+            return;
+        }
+
+        // Get current time in seconds
+        double current_time = now.seconds();
+
+        switch (current_waypoint) {
+        case 0:
+            handle_waypoint_0(current_time);
+            break;
+        case 1:
+            handle_waypoint_1(current_time);
+            break;
+        case 2:
+            handle_waypoint_2(current_time);
+            break;
+        case 3:
+            handle_waypoint_3(current_time);
+            break;
+        case 4:
+            handle_waypoint_4();
+            break;
+        case 5:
+            handle_waypoint_5();
+            break;
+        default:
+            RCLCPP_WARN(get_logger(), "Invalid waypoint: %d", current_waypoint);
+        }
     }
 
     bool check_state() {
         std::lock_guard<std::mutex> lock(mutex);
 
         if (!current_state.connected) {
-            RCLCPP_WARN_THROTTLE(
-                get_logger(), *get_clock(), 1000, "FCU is not connected, waiting for FCU connection...");
+            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "FCU is not connected, waiting for FCU connection...");
             return false;
         }
 
@@ -388,15 +388,14 @@ private:
         }
 
         if (current_state.mode != "GUIDED" && current_state.mode != "MANUAL") {
-            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000,
-                "Robot is in %s mode, waiting for GUIDED or MANUAL mode...", current_state.mode.c_str());
+            RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 1000, "Robot is in %s mode, waiting for GUIDED or MANUAL mode...", current_state.mode.c_str());
             return false;
         }
 
         return true;
     }
 
-    void run() {
+    void runner() {
         if (!check_state()) {
             return;
         }
@@ -405,15 +404,15 @@ private:
 
         auto mission_msg = std_msgs::msg::String();
         mission_msg.data = mission;
-        mission_pub->publish(mission_msg);
+        this->mission_pub->publish(mission_msg);
 
         auto left_msg = std_msgs::msg::String();
         left_msg.data = left_buoy;
-        left_buoy_pub->publish(left_msg);
+        this->left_buoy_pub->publish(left_msg);
 
         auto right_msg = std_msgs::msg::String();
         right_msg.data = right_buoy;
-        right_buoy_pub->publish(right_msg);
+        this->right_buoy_pub->publish(right_msg);
 
         RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "Current mission: %s", mission.c_str());
     }
@@ -439,18 +438,18 @@ private:
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr left_buoy_pub;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr right_buoy_pub;
 
-    // Timer Declaration
+    // Rate Timer Declaration
     rclcpp::TimerBase::SharedPtr loop_timer;
     rclcpp::TimerBase::SharedPtr param_timer;
 
-    // Variables Declaration
+    // Variable Declaration
     std::mutex mutex;
     rclcpp::Time nav_start_time;
     mavros_msgs::msg::State current_state;
     std::map<std::string, std::map<std::string, double>> phase_duration;
     std::string mission;
 
-    // Variables Initialization
+    // Variable Initialization
     std::string trajectory = "B";
     std::string default_left = "green_buoy";
     std::string default_right = "red_buoy";

@@ -13,11 +13,13 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic -O3)
 endif()
 
+# ROS2 packages
 find_package(ament_cmake REQUIRED)
 
+# Install Directory
 install(DIRECTORY
-  launch
   config
+  launch
   DESTINATION share/${PROJECT_NAME}
 )
 

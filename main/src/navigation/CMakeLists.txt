@@ -13,12 +13,13 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic -O3)
 endif()
 
+# ROS2 packages
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
-# Set path to find mavros_msgs from libs workspace
-set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};/home/arielsulton/ASV-2025/libs/install")
+# MAVROS packages
+set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};/home/ubuntu/ASV-2025/libs/install")
 find_package(mavros_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
@@ -26,10 +27,10 @@ find_package(tf2_geometry_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
-find_package(yaml-cpp REQUIRED)
 
-add_executable(gps_pose ${PROJECT_NAME}/gps_pose.cpp)
-ament_target_dependencies(gps_pose
+# C++ executables
+add_executable(gps_nav ${PROJECT_NAME}/gps_nav.cpp)
+ament_target_dependencies(gps_nav
   rclcpp
   std_msgs
   mavros_msgs
@@ -40,10 +41,24 @@ ament_target_dependencies(gps_pose
   sensor_msgs
   nav_msgs
 )
-target_link_libraries(gps_pose yaml-cpp)
 
+add_executable(vision_nav ${PROJECT_NAME}/vision_nav.cpp)
+ament_target_dependencies(vision_nav
+  rclcpp
+  std_msgs
+  mavros_msgs
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
+  geometry_msgs
+  sensor_msgs
+  nav_msgs
+)
+
+# Install C++ executables
 install(TARGETS
-  gps_pose
+  gps_nav
+  vision_nav
   DESTINATION lib/${PROJECT_NAME}
 )
 

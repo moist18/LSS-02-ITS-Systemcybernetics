@@ -13,25 +13,34 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic -O3)
 endif()
 
+# ROS2 packages
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
-# Set path to find mavros_msgs from libs workspace
-set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};/home/arielsulton/ASV-2025/libs/install")
+# MAVROS packages
+set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};/home/ubuntu/ASV-2025/libs/install")
 find_package(mavros_msgs REQUIRED)
-find_package(yaml-cpp REQUIRED)
 
-add_executable(pose_planner ${PROJECT_NAME}/pose_planner.cpp)
-ament_target_dependencies(pose_planner 
+# C++ executables
+add_executable(gps_rtk_planner ${PROJECT_NAME}/gps_rtk_planner.cpp)
+ament_target_dependencies(gps_rtk_planner 
   rclcpp 
   std_msgs
   mavros_msgs
 )
-target_link_libraries(pose_planner yaml-cpp)
 
+add_executable(gps_vision_planner ${PROJECT_NAME}/gps_vision_planner.cpp)
+ament_target_dependencies(gps_vision_planner 
+  rclcpp 
+  std_msgs
+  mavros_msgs
+)
+
+# Install C++ executables
 install(TARGETS
-  pose_planner
+  gps_rtk_planner
+  gps_vision_planner
   DESTINATION lib/${PROJECT_NAME}
 )
 

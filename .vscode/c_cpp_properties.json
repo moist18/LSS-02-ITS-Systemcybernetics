@@ -1,7 +1,7 @@
 {
   "configurations": [
     {
-      "name": "linux-gcc-x64",
+      "name": "linux-gcc-arm64",
       "includePath": [
         "${workspaceFolder}/**",
         "${workspaceFolder}/libs/install/**",
@@ -15,7 +15,7 @@
       "compilerPath": "/usr/bin/gcc",
       "cStandard": "c17",
       "cppStandard": "gnu++14",
-      "intelliSenseMode": "linux-gcc-x64"
+      "intelliSenseMode": "linux-gcc-arm64"
     }
   ],
   "version": 4

@@ -116,17 +116,22 @@ if ! shopt -oq posix; then
   fi
 fi
 
-export PATH=${PATH}:/usr/local/cuda/bin
-export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/cuda/lib64
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
+# ROS2 setup
 source /opt/ros/humble/setup.bash
-# or
-source /opt/ros/foxy/setup.bash
 
-if [ -f "/home/.../ASV-2025/libs/install/setup.bash" ]; then
-    source "/home/.../ASV-2025/libs/install/setup.bash"
+# ASV-2025 setup
+if [ -f "/home/ubuntu/ASV-2025/libs/install/setup.bash" ]; then
+    source "/home/ubuntu/ASV-2025/libs/install/setup.bash"
 fi
 
-if [ -f "/home/.../ASV-2025/main/install/setup.bash" ]; then
-    source "/home/.../ASV-2025/main/install/setup.bash"
+if [ -f "/home/ubuntu/ASV-2025/main/install/setup.bash" ]; then
+    source "/home/ubuntu/ASV-2025/main/install/setup.bash"
 fi
+
+# Other setup
+export PATH="$HOME/.local/bin:$PATH"
+

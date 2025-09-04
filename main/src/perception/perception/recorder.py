@@ -14,11 +14,11 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))
 
-class Recorder(Node):
+class RecorderNode(Node):
     def __init__(self):
-        super().__init__('record_node')
+        super().__init__('recorder_node')
         
-        # Variables
+        # Variable Initialization
         self.fps = 20
         self.index = 1
         self.prev_time = self.get_clock().now().nanoseconds / 1e9
@@ -27,20 +27,18 @@ class Recorder(Node):
         self.height = 480
         self.video_dir = f'{ROOT}/video'
         self.fourcc = cv2.VideoWriter_fourcc(*'MJPG')
+        self.out = self.video_writer()
         
         # Create video directory if not exists
         os.makedirs(self.video_dir, exist_ok=True)
         
-        # Initialize video writer
-        self.out = self.video_writer()
-        
-        # Setup camera
+        # Camera Configuration
         self.cap = cv2.VideoCapture(0)
         self.cap.set(3, self.width)
         self.cap.set(4, self.height)
         
-        # Setup timer for recording
-        self.timer = self.create_timer(1.0/self.fps, self.timer_callback)
+        # Rate Timer Initialization
+        self.loop_timer = self.create_timer(1.0/self.fps, self.timer_callback)
 
     def video_writer(self):
         while os.path.exists(os.path.join(self.video_dir, f'output{self.index}.avi')):
@@ -73,7 +71,7 @@ class Recorder(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = Recorder()
+    node = RecorderNode()
     
     try:
         rclpy.spin(node)

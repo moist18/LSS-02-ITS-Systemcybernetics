@@ -88,47 +88,53 @@ The project is organized into two main directories:
 
 ### 1. Mission Package
 
-**Core Component**: `pose_planner.cpp`
+**Core Components**: 
+- `gps_rtk_planner.cpp`: GPS RTK-based mission planning and execution
+- `gps_vision_planner.cpp`: Vision-integrated mission planning (skeleton)
 
 **Functionality**:
-- Waypoint-based mission execution with configurable phase durations
+- RTK GPS-based mission execution with high precision positioning
 - Supports dual trajectory modes (A/B) for different mission profiles
-- Coordinates between GPS navigation, compass alignment, and vision control
+- Modern ROS2 parameter system with dotted notation
 - Handles mission state transitions through waypoint progression
 
 **Key Features**:
-- Thread-safe parameter management with mutex protection
+- Modern C++ patterns with `this->` convention
+- ROS2 parameter system replacing YAML file reading
 - Real-time mission state publishing
-- Automatic buoy color swapping for navigation challenges
-- Multi-phase mission execution (Floating Ball → Surface Imaging → Underwater Imaging → Docking)
+- Multi-phase mission execution with configurable waypoints
 
-**Mission States**:
-- **Waypoint 0**: Floating Ball mission with vision-to-GPS transition
-- **Waypoint 1**: Compass alignment with buoy color swap
-- **Waypoint 2**: Surface imaging with mission state progression
-- **Waypoint 3**: Underwater imaging with docking preparation
-- **Waypoint 4**: GPS navigation to final position
-- **Waypoint 5**: Vision-based docking approach
+**Mission Phases**:
+- **RTK GPS Navigation**: High-precision waypoint following
+- **Vision Integration**: Combined GPS and vision-based navigation
+- **Multi-trajectory Support**: Configurable A/B mission profiles
+- **Parameter-driven**: ROS2 parameter system with dotted notation
 
 ### 2. Navigation Package
 
-**Core Component**: `gps_pose.cpp`
+**Core Components**:
+- `gps_nav.cpp`: GPS waypoint navigation with configurable radius tolerance
+- `vision_nav.cpp`: Vision-based navigation and control
 
 **Functionality**:
 - GPS waypoint navigation with configurable radius tolerance
+- ROS2 parameter system with dotted notation (`navigation.waypoints_A.count`)
 - Haversine distance calculation for precise positioning
-- Quaternion-based orientation control
-- Dynamic waypoint progression based on proximity
+- Vision-based navigation integration
 
 **Key Features**:
 - Support for dual trajectory configurations (A/B)
-- Thread-safe parameter loading and updates
+- Modern C++ patterns with `this->` convention
 - Real-time distance and waypoint status reporting
-- Automatic waypoint advancement with completion detection
+- Parameter-driven configuration system
 
 ### 3. Perception Package
 
-**Core Component**: `vision.py`
+**Core Components**:
+- `vision.py`: YOLO-based object detection and vision processing
+- `surface.cpp`: Surface imaging and processing
+- `underwater.cpp`: Underwater imaging and processing
+- `record.py`: Video recording and data logging
 
 **Functionality**:
 - YOLO-based object detection for buoys and docking stations
@@ -159,7 +165,7 @@ The project is organized into two main directories:
 - **battery.cpp**: Power management and voltage monitoring
 - **cpu.cpp**: System resource monitoring
 - **gps.cpp**: GPS signal quality and status
-- **gpu.py**: GPU utilization tracking for vision processing
+- **date.py**: System date/time publishing (converted from C++)
 
 ### 6. Launcher Package
 
@@ -242,7 +248,7 @@ rm ./install_geographiclib_datasets.sh
 ### Build Commands
 ```bash
 # Build dependencies
-cd libs && colcon build --packages-up-to rplidar_ros serial vision_opencv
+cd libs && colcon build --packages-up-to rplidar_ros serial vision_opencv mavros
 
 # Build main application
 cd main && colcon build
@@ -266,11 +272,11 @@ ros2 launch launcher remote.launch.py
 
 ### Testing
 ```bash
-# Python package testing
-cd main/src/perception && python -m pytest test/
+# Python package testing (if test directory exists)
+cd main/src/perception && python -m pytest test/ 2>/dev/null || echo "No pytest tests found"
 
 # Code quality checks
-cd main/src/perception && python -m flake8 perception/
+cd main/src/perception && python -m flake8 perception/ --exclude=__pycache__
 ```
 
 ## Configuration
@@ -308,15 +314,17 @@ cd main/src/perception && python -m flake8 perception/
 ## Development Guidelines
 
 ### Code Organization
-- **C++ Components**: Real-time control and mission-critical functions
-- **Python Components**: Perception and non-critical processing
-- **Configuration-Driven**: Parameter management through YAML files
-- **Modular Design**: Independent package structure with clear interfaces
+- **C++ Components**: Real-time control and mission-critical functions using modern `this->` convention
+- **Python Components**: Perception and non-critical processing with modern ROS2 patterns
+- **Parameter-Driven**: ROS2 parameter system with dotted notation replacing YAML files
+- **Mixed Package Support**: ament_cmake_python for packages with both C++ and Python
 
 ### Best Practices
-- Thread-safe parameter handling with mutex protection
+- Modern C++ patterns with `this->` member access convention
+- ROS2 parameter system with `declare_parameter()` and `get_parameter()`
+- In-class initialization to reduce constructor complexity
+- Member variables organized at bottom of private sections
 - Comprehensive error handling and logging
-- Configurable parameters for different operational environments
 - Systematic testing with individual component launch files
 
 ### Integration Testing

@@ -12,41 +12,27 @@ class GPSNode : public rclcpp::Node {
 public:
     GPSNode()
         : Node("gps_node") {
-        // Subscriber
-        nav_sub_ = this->create_subscription<sensor_msgs::msg::NavSatFix>(
-            "/mavros/global_position/global", 10, std::bind(&GPSNode::gps_callback, this, std::placeholders::_1));
 
-        // Publishers
-        gps_pub_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("/robot/gps", 10);
-        cog_pub_ = this->create_publisher<std_msgs::msg::Float64>("/robot/cog", 10);
-        sog_pub_ = this->create_publisher<std_msgs::msg::Float32MultiArray>("/robot/sog", 10);
+        // Subscriber Initialization
+        this->nav_sub = this->create_subscription<sensor_msgs::msg::NavSatFix>("/mavros/global_position/global", rclcpp::SensorDataQoS(), std::bind(&GPSNode::gps_callback, this, std::placeholders::_1));
 
-        // Timer for publishing
-        timer_ = this->create_wall_timer(1s, std::bind(&GPSNode::data_publisher, this));
+        // Publisher Initialization
+        this->gps_pub = this->create_publisher<std_msgs::msg::Float32MultiArray>("/robot/gps", rclcpp::ServicesQoS());
+        this->cog_pub = this->create_publisher<std_msgs::msg::Float64>("/robot/cog", rclcpp::ServicesQoS());
+        this->sog_pub = this->create_publisher<std_msgs::msg::Float32MultiArray>("/robot/sog", rclcpp::ServicesQoS());
+
+        // Rate Timer Initialization
+        this->loop_timer = this->create_wall_timer(1s, std::bind(&GPSNode::data_publisher, this));
+
+        RCLCPP_INFO(this->get_logger(), "GPS node started");
     }
 
 private:
-    std::mutex mutex_;
-    double current_lat_ = NAN;
-    double current_lon_ = NAN;
-    rclcpp::Time current_time_;
-
-    double prev_lat_ = NAN;
-    double prev_lon_ = NAN;
-    rclcpp::Time prev_time_;
-
-    // Subscribers and Publishers
-    rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr nav_sub_;
-    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr gps_pub_;
-    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr cog_pub_;
-    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr sog_pub_;
-    rclcpp::TimerBase::SharedPtr timer_;
-
     void gps_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        current_lat_ = msg->latitude;
-        current_lon_ = msg->longitude;
-        current_time_ = this->now();
+        std::lock_guard<std::mutex> lock(this->mutex);
+        this->current_lat = msg->latitude;
+        this->current_lon = msg->longitude;
+        this->current_time = this->now();
     }
 
     double haversine(double lat1, double lon1, double lat2, double lon2) {
@@ -62,9 +48,9 @@ private:
     }
 
     double calculate_cog(double lat2, double lon2) {
-        const double lon_diff = (lon2 - prev_lon_) * M_PI / 180.0;
+        const double lon_diff = (lon2 - this->prev_lon) * M_PI / 180.0;
         const double lat2_rad = lat2 * M_PI / 180.0;
-        const double prev_lat_rad = prev_lat_ * M_PI / 180.0;
+        const double prev_lat_rad = this->prev_lat * M_PI / 180.0;
 
         const double y = sin(lon_diff) * cos(lat2_rad);
         const double x = cos(prev_lat_rad) * sin(lat2_rad) - sin(prev_lat_rad) * cos(lat2_rad) * cos(lon_diff);
@@ -75,8 +61,8 @@ private:
     }
 
     double calculate_sog(double lat2, double lon2, const rclcpp::Time& current_time) {
-        const double distance = haversine(prev_lat_, prev_lon_, lat2, lon2);
-        const double time_diff = (current_time - prev_time_).seconds();
+        const double distance = haversine(this->prev_lat, this->prev_lon, lat2, lon2);
+        const double time_diff = (current_time - this->prev_time).seconds();
 
         if (time_diff > 0.0) {
             return distance / time_diff;
@@ -85,42 +71,65 @@ private:
     }
 
     void data_publisher() {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::lock_guard<std::mutex> lock(this->mutex);
 
-        if (!std::isnan(current_lat_) && !std::isnan(current_lon_)) {
+        if (!std::isnan(this->current_lat) && !std::isnan(this->current_lon)) {
             // Publish GPS coordinates
             auto gps_msg = std_msgs::msg::Float32MultiArray();
-            gps_msg.data = { static_cast<float>(current_lat_), static_cast<float>(current_lon_) };
-            gps_pub_->publish(gps_msg);
+            gps_msg.data = { static_cast<float>(this->current_lat), static_cast<float>(this->current_lon) };
+            this->gps_pub->publish(gps_msg);
 
-            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Latitude: %.6f, Longitude: %.6f",
-                current_lat_, current_lon_);
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Latitude: %.6f, Longitude: %.6f", this->current_lat, this->current_lon);
 
-            if (!std::isnan(prev_lat_) && !std::isnan(prev_lon_)) {
+            if (!std::isnan(this->prev_lat) && !std::isnan(this->prev_lon)) {
                 // Calculate and publish COG
-                const double cog = calculate_cog(current_lat_, current_lon_);
+                double cog_value = calculate_cog(this->current_lat, this->current_lon);
                 auto cog_msg = std_msgs::msg::Float64();
-                cog_msg.data = cog;
-                cog_pub_->publish(cog_msg);
+                cog_msg.data = cog_value;
+                this->cog_pub->publish(cog_msg);
 
                 // Calculate and publish SOG
-                const double sog_mps = calculate_sog(current_lat_, current_lon_, current_time_);
-                auto sog_msg = std_msgs::msg::Float32MultiArray();
-                sog_msg.data = { static_cast<float>(sog_mps * 3.6), // km/h
-                    static_cast<float>(sog_mps * 1.94384) }; // knots
-                sog_pub_->publish(sog_msg);
+                double sog_value = this->calculate_sog(this->current_lat, this->current_lon, this->current_time);
+                double mps_value = sog_value;
+                double kmh_value = mps_value * 3.6;
+                double knot_value = kmh_value / 1.852;
+
+                auto sog_data = std_msgs::msg::Float32MultiArray();
+                sog_data.data = { static_cast<float>(kmh_value), static_cast<float>(knot_value) };
+                this->sog_pub->publish(sog_data);
 
                 RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Current COG: %.2f°", cog);
-                RCLCPP_INFO_THROTTLE(
-                    this->get_logger(), *this->get_clock(), 1000, "Current SOG: %.2f km/h", sog_msg.data[0]);
+                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Current SOG: %.2f km/h", sog_msg.data[0]);
             }
 
             // Update previous values
-            prev_lat_ = current_lat_;
-            prev_lon_ = current_lon_;
-            prev_time_ = current_time_;
+            this->prev_lat = this->current_lat;
+            this->prev_lon = this->current_lon;
+            this->prev_time = this->current_time;
         }
     }
+
+    // Subscriber Declaration
+    rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr nav_sub;
+
+    // Publisher Declaration
+    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr gps_pub;
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr cog_pub;
+    rclcpp::Publisher<std_msgs::msg::Float32MultiArray>::SharedPtr sog_pub;
+
+    // Rate Timer Declaration
+    rclcpp::TimerBase::SharedPtr loop_timer;
+
+    // Mutex Declaration
+    std::mutex mutex;
+
+    // Variable Declaration
+    rclcpp::Time current_time;
+    rclcpp::Time prev_time;
+    double current_lat = NAN;
+    double current_lon = NAN;
+    double prev_lat = NAN;
+    double prev_lon = NAN;
 };
 
 int main(int argc, char** argv) {

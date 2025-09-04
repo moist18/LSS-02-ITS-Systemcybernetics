@@ -1,7 +1,14 @@
-# # Build
+# Build
 */build/
 */install/
 */log/
 
-# # ASV 2024 Reference
+# Environment
+*/.venv/
+.cursor/
+.cursorignore
+CLAUDE.md
+
+# Reference
+laptop/
 reference/

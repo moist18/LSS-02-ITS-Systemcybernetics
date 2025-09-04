@@ -1,4 +1,5 @@
 #include "mavros_msgs/msg/state.hpp"
+#include "rclcpp/qos.hpp"
 #include "rclcpp/rclcpp.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
 #include "std_msgs/msg/float32.hpp"
@@ -10,64 +11,72 @@ class BatteryNode : public rclcpp::Node {
 public:
     BatteryNode()
         : Node("battery_node")
-        , battery_percentage_(0.0f)
-        , connected_(false) {
-        // Subscribers
-        state_sub_ = this->create_subscription<mavros_msgs::msg::State>(
-            "/mavros/state", 10, [this](const mavros_msgs::msg::State::SharedPtr msg) {
-                std::lock_guard<std::mutex> lock(state_mutex_);
-                connected_ = msg->connected;
-            });
+        , battery_percentage(0.0f)
+        , connected(false) {
 
-        battery_sub_ = this->create_subscription<sensor_msgs::msg::BatteryState>(
-            "/mavros/battery", 10, [this](const sensor_msgs::msg::BatteryState::SharedPtr msg) {
-                std::lock_guard<std::mutex> lock(battery_mutex_);
-                battery_percentage_ = msg->percentage * 100.0f;
-            });
+        // Subscriber Initialization
+        this->state_sub = this->create_subscription<mavros_msgs::msg::State>("/mavros/state", rclcpp::SensorDataQoS(), std::bind(&BatteryNode::state_callback, this, std::placeholders::_1));
+        this->battery_sub = this->create_subscription<sensor_msgs::msg::BatteryState>("/mavros/battery", rclcpp::SensorDataQoS(), std::bind(&BatteryNode::battery_callback, this, std::placeholders::_1));
 
-        // Publisher
-        battery_pub_ = this->create_publisher<std_msgs::msg::Float32>("/robot/battery", 10);
+        // Publisher Initialization
+        this->battery_pub = this->create_publisher<std_msgs::msg::Float32>("/robot/battery", rclcpp::ServicesQoS());
 
-        // Timer for publishing
-        timer_ = this->create_wall_timer(1s, [this]() {
-            bool current_connected;
-            float current_battery;
+        // Rate Timer Initialization
+        this->loop_timer = this->create_wall_timer(1s, std::bind(&BatteryNode::data_publisher, this));
 
-            {
-                std::lock_guard<std::mutex> lock1(state_mutex_);
-                current_connected = connected_;
-            }
-
-            {
-                std::lock_guard<std::mutex> lock2(battery_mutex_);
-                current_battery = battery_percentage_;
-            }
-
-            if (current_connected) {
-                auto message = std_msgs::msg::Float32();
-                message.data = current_battery;
-                battery_pub_->publish(message);
-                RCLCPP_INFO(this->get_logger(), "Battery: %.2f %%", current_battery);
-            }
-        });
+        RCLCPP_INFO(this->get_logger(), "Battery node started");
     }
 
 private:
-    // Subscribers
-    rclcpp::Subscription<mavros_msgs::msg::State>::SharedPtr state_sub_;
-    rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr battery_sub_;
+    void state_callback(const mavros_msgs::msg::State::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->state_mutex);
+        this->connected = msg->connected;
+    }
 
-    // Publisher
-    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr battery_pub_;
+    void battery_callback(const sensor_msgs::msg::BatteryState::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->battery_mutex);
+        this->battery_percentage = msg->percentage * 100.0f;
+    }
 
-    // Timer
-    rclcpp::TimerBase::SharedPtr timer_;
+    void data_publisher() {
+        bool current_connected;
+        float current_battery;
 
-    // Shared data with mutex protection
-    std::mutex state_mutex_;
-    std::mutex battery_mutex_;
-    float battery_percentage_;
-    bool connected_;
+        {
+            std::lock_guard<std::mutex> lock1(this->state_mutex);
+            current_connected = this->connected;
+        }
+
+        {
+            std::lock_guard<std::mutex> lock2(this->battery_mutex);
+            current_battery = this->battery_percentage;
+        }
+
+        if (current_connected) {
+            auto message = std_msgs::msg::Float32();
+            message.data = current_battery;
+            this->battery_pub->publish(message);
+            RCLCPP_INFO(this->get_logger(), "Battery: %.2f %%", current_battery);
+        }
+    }
+
+    // Subscriber Declaration
+    rclcpp::Subscription<mavros_msgs::msg::State>::SharedPtr state_sub;
+    rclcpp::Subscription<sensor_msgs::msg::BatteryState>::SharedPtr battery_sub;
+
+    // Publisher Declaration
+    rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr battery_pub;
+
+    // Rate Timer Declaration
+    rclcpp::TimerBase::SharedPtr loop_timer;
+
+    // Mutex Declaration
+    std::mutex state_mutex;
+    std::mutex battery_mutex;
+
+    // Variable Declaration
+    float battery_percentage;
+    bool connected;
 };
 
 int main(int argc, char** argv) {

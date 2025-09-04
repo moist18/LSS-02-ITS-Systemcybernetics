@@ -41,7 +41,7 @@ def generate_launch_description():
         
         Node(
             package='mission',
-            executable='pose_planner',
+            executable='gps_rtk_planner',
             name='planner_node',
             output='screen',
             emulate_tty=True,
@@ -49,7 +49,7 @@ def generate_launch_description():
         ),
         # Node(
         #     package='mission',
-        #     executable='planner2',
+        #     executable='gps_vision_planner',
         #     name='planner_node',
         #     output='screen',
         #     emulate_tty=True,
@@ -75,15 +75,15 @@ def generate_launch_description():
         ),
         Node(
             package='monitoring',
-            executable='gps',
-            name='gps_node',
+            executable='date',
+            name='date_node',
             output='screen',
             emulate_tty=True
         ),
         Node(
             package='monitoring',
-            executable='gpu',
-            name='gpu_node',
+            executable='gps',
+            name='gps_node',
             output='screen',
             emulate_tty=True
         ),
@@ -93,8 +93,8 @@ def generate_launch_description():
         
         Node(
             package='navigation',
-            executable='gps_pose',
-            name='gps_nav',
+            executable='gps_nav',
+            name='gps_navigation',
             output='screen',
             emulate_tty=True,
             parameters=[mission_param]
@@ -102,7 +102,7 @@ def generate_launch_description():
         Node(
             package='navigation',
             executable='vision_nav',
-            name='vision_nav',
+            name='vision_navigation',
             output='screen',
             emulate_tty=True,
             parameters=[vision_param]
@@ -111,6 +111,20 @@ def generate_launch_description():
         
         # PERCEPTION PACKAGE
         
+        Node(
+            package='perception',
+            executable='surface',
+            name='surface_node',
+            output='screen',
+            emulate_tty=True
+        ),
+        Node(
+            package='perception',
+            executable='underwater',
+            name='underwater_node',
+            output='screen',
+            emulate_tty=True
+        ),
         Node(
             package='perception',
             executable='vision',
@@ -125,24 +139,8 @@ def generate_launch_description():
         
         Node(
             package='sensor',
-            executable='remote',
-            name='remote_node',
-            output='screen',
-            emulate_tty=True,
-            parameters=[sensor_param]
-        ),
-        Node(
-            package='rplidar_ros',
-            executable='rplidar_node',
-            name='rplidar_node',
-            output='screen',
-            emulate_tty=True,
-            parameters=[sensor_param]
-        ),
-        Node(
-            package='sensor',
-            executable='rplidar',
-            name='lidar_node',
+            executable='arduino',
+            name='arduino_node',
             output='screen',
             emulate_tty=True,
             parameters=[sensor_param]
@@ -151,13 +149,6 @@ def generate_launch_description():
             package='sensor',
             executable='state',
             name='state_node',
-            output='screen',
-            emulate_tty=True
-        ),
-        Node(
-            package='sensor',
-            executable='compass',
-            name='compass_node',
             output='screen',
             emulate_tty=True
         )

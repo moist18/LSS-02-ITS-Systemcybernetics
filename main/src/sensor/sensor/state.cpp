@@ -1,5 +1,6 @@
 #include <mavros_msgs/srv/command_bool.hpp>
 #include <mavros_msgs/srv/set_mode.hpp>
+#include <rclcpp/qos.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/string.hpp>
@@ -8,25 +9,20 @@ class StateNode : public rclcpp::Node {
 public:
     StateNode()
         : Node("state_node") {
-        // Subscribers
-        arming_sub_ = this->create_subscription<std_msgs::msg::Bool>(
-            "/robot/arming", 10, std::bind(&StateNode::armingCallback, this, std::placeholders::_1));
 
-        setmode_sub_ = this->create_subscription<std_msgs::msg::String>(
-            "/robot/setmode", 10, std::bind(&StateNode::setModeCallback, this, std::placeholders::_1));
+        // Subscribers Initialization
+        this->arming_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/arming", rclcpp::ServicesQoS(), std::bind(&StateNode::arming_callback, this, std::placeholders::_1));
+        this->setmode_sub = this->create_subscription<std_msgs::msg::String>("/robot/setmode", rclcpp::ServicesQoS(), std::bind(&StateNode::setmode_callback, this, std::placeholders::_1));
 
-        // Service clients
-        arming_client_ = this->create_client<mavros_msgs::srv::CommandBool>("/mavros/cmd/arming");
-        mode_client_ = this->create_client<mavros_msgs::srv::SetMode>("/mavros/set_mode");
+        // Service client Initialization
+        this->arming_client = this->create_client<mavros_msgs::srv::CommandBool>("/mavros/cmd/arming");
+        this->mode_client = this->create_client<mavros_msgs::srv::SetMode>("/mavros/set_mode");
+
+        RCLCPP_INFO(this->get_logger(), "State node started");
     }
 
 private:
-    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr arming_sub_;
-    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr setmode_sub_;
-    rclcpp::Client<mavros_msgs::srv::CommandBool>::SharedPtr arming_client_;
-    rclcpp::Client<mavros_msgs::srv::SetMode>::SharedPtr mode_client_;
-
-    void armingCallback(const std_msgs::msg::Bool::SharedPtr msg) {
+    void arming_callback(const std_msgs::msg::Bool::SharedPtr msg) {
         if (msg->data) {
             arm();
         } else {
@@ -34,11 +30,13 @@ private:
         }
     }
 
-    void setModeCallback(const std_msgs::msg::String::SharedPtr msg) { setMode(msg->data); }
+    void setmode_callback(const std_msgs::msg::String::SharedPtr msg) {
+        set_mode(msg->data);
+    }
 
     void arm() {
         RCLCPP_INFO(this->get_logger(), "Attempting to send ARMING command...");
-        if (!arming_client_->wait_for_service(std::chrono::seconds(10))) {
+        if (!this->arming_client->wait_for_service(std::chrono::seconds(10))) {
             RCLCPP_ERROR(this->get_logger(), "Arming service not available");
             return;
         }
@@ -46,7 +44,7 @@ private:
         auto request = std::make_shared<mavros_msgs::srv::CommandBool::Request>();
         request->value = true;
 
-        auto result = arming_client_->async_send_request(request);
+        auto result = this->arming_client->async_send_request(request);
         try {
             auto response = result.get();
             if (response->success) {
@@ -61,7 +59,7 @@ private:
 
     void disarm() {
         RCLCPP_INFO(this->get_logger(), "Attempting to send DISARMING command...");
-        if (!arming_client_->wait_for_service(std::chrono::seconds(10))) {
+        if (!this->arming_client->wait_for_service(std::chrono::seconds(10))) {
             RCLCPP_ERROR(this->get_logger(), "Arming service not available");
             return;
         }
@@ -69,7 +67,7 @@ private:
         auto request = std::make_shared<mavros_msgs::srv::CommandBool::Request>();
         request->value = false;
 
-        auto result = arming_client_->async_send_request(request);
+        auto result = this->arming_client->async_send_request(request);
         try {
             auto response = result.get();
             if (response->success) {
@@ -82,9 +80,9 @@ private:
         }
     }
 
-    void setMode(const std::string& mode) {
+    void set_mode(const std::string& mode) {
         RCLCPP_INFO(this->get_logger(), "Attempting to set %s mode...", mode.c_str());
-        if (!mode_client_->wait_for_service(std::chrono::seconds(10))) {
+        if (!this->mode_client->wait_for_service(std::chrono::seconds(10))) {
             RCLCPP_ERROR(this->get_logger(), "Mode service not available");
             return;
         }
@@ -93,7 +91,7 @@ private:
         request->custom_mode = mode;
 
         for (int i = 1; i <= 3; ++i) {
-            auto result = mode_client_->async_send_request(request);
+            auto result = this->mode_client->async_send_request(request);
             try {
                 auto response = result.get();
                 if (response->mode_sent) {
@@ -109,6 +107,14 @@ private:
         }
         RCLCPP_ERROR(this->get_logger(), "Failed to set %s mode after 3 attempts", mode.c_str());
     }
+
+    // Subscriber Declaration
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr arming_sub;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr setmode_sub;
+
+    // Service client Declaration
+    rclcpp::Client<mavros_msgs::srv::CommandBool>::SharedPtr arming_client;
+    rclcpp::Client<mavros_msgs::srv::SetMode>::SharedPtr mode_client;
 };
 
 int main(int argc, char** argv) {
