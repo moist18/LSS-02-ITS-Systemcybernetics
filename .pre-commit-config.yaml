@@ -1,12 +1,12 @@
 # pre-commit usage:
 # sudo apt install pre-commit
-# cd ./main
 # python3.10 -m venv .venv
 # source .venv/bin/activate
 # pre-commit install --config .pre-commit-config.yaml
-# PRE_COMMIT_ALLOW_NO_CONFIG=1 git commit -m "..."
+# pre-commit clean && pre-commit autoupdate --config .pre-commit-config.yaml
+# git commit -m "..."
 
-exclude: \.venv/
+exclude: \.venv/|libs/|reference/
 
 repos:
   - repo: https://github.com/psf/black
