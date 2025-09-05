@@ -1,0 +1,22 @@
+/remote_node:
+  ros__parameters:
+    port: "/dev/ttyACM0"
+    baudrate: 9600
+
+/rplidar_node:
+  ros__parameters:
+    channel_type: 'serial'
+    serial_port: '/dev/ttyUSB0'
+    serial_baudrate: 256000
+    frame_id: 'laser'
+    inverted: false
+    angle_compensate: true
+
+/lidar_node:
+  ros__parameters:
+    lidar:
+      min_range: 0.4
+      max_range: 2.2
+      min_point: 5
+      min_angle: 345
+      max_angle: 15

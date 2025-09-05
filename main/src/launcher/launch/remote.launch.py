@@ -9,16 +9,16 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
+    perception_param = os.path.join(
+                        get_package_share_directory('launcher'),
+                        'config',
+                        'perception.yaml'
+                    )
+
     sensor_param = os.path.join(
                         get_package_share_directory('launcher'),
                         'config',
                         'sensor.yaml'
-                    )
-    
-    vision_param = os.path.join(
-                        get_package_share_directory('launcher'),
-                        'config',
-                        'vision.yaml'
                     )
     
     return LaunchDescription([
@@ -40,13 +40,14 @@ def generate_launch_description():
         #     output='screen',
         #     emulate_tty=True
         # ),
+        
         # Node(
         #     package='perception',
         #     executable='vision',
         #     name='vision_node',
         #     output='screen',
         #     emulate_tty=True,
-        #     parameters=[vision_param]
+        #     parameters=[perception_param]
         # ),
         
         

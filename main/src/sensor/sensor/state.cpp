@@ -1,7 +1,7 @@
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp/qos.hpp>
 #include <mavros_msgs/srv/command_bool.hpp>
 #include <mavros_msgs/srv/set_mode.hpp>
-#include <rclcpp/qos.hpp>
-#include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/string.hpp>
 
@@ -24,14 +24,14 @@ public:
 private:
     void arming_callback(const std_msgs::msg::Bool::SharedPtr msg) {
         if (msg->data) {
-            arm();
+            this->arm();
         } else {
-            disarm();
+            this->disarm();
         }
     }
 
     void setmode_callback(const std_msgs::msg::String::SharedPtr msg) {
-        set_mode(msg->data);
+        this->set_mode(msg->data);
     }
 
     void arm() {

@@ -1,3 +1,14 @@
+#include <rclcpp/rclcpp.hpp>
+#include <rclcpp/qos.hpp>
+#include <mavros_msgs/msg/override_rc_in.hpp>
+#include <sensor_msgs/msg/nav_sat_fix.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/string.hpp>
+#include <serial/serial.h>
+#include <mutex>
+#include <sstream>
+#include <thread>
+#include <vector>
 #include <algorithm>
 #include <chrono>
 #include <ctime>
@@ -5,16 +16,8 @@
 #include <fstream>
 #include <iomanip>
 #include <map>
-#include <mavros_msgs/msg/override_rc_in.hpp>
-#include <rclcpp/qos.hpp>
-#include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/nav_sat_fix.hpp>
-#include <serial/serial.h>
-#include <sstream>
-#include <std_msgs/msg/bool.hpp>
-#include <std_msgs/msg/string.hpp>
-#include <thread>
-#include <vector>
+
+using namespace std::chrono_literals;
 
 class ArduinoNode : public rclcpp::Node {
 public:
@@ -23,8 +26,8 @@ public:
         , buffer("") {
 
         // Parameter Declaration
-        this->port = this->declare_parameter<std::string>("port", "/dev/ttyACM0");
-        this->baudrate = this->declare_parameter<int>("baudrate", 9600);
+        this->declare_parameter<std::string>("arduino.port", "/dev/ttyACM0");
+        this->declare_parameter<int>("arduino.baudrate", 9600);
 
         // Initialize waypoint file system
         this->waypoints_file_path = initialize_waypoints_file();
@@ -52,13 +55,31 @@ public:
         this->right_buoy_pub = this->create_publisher<std_msgs::msg::String>("/detect/right_buoy", rclcpp::ServicesQoS());
 
         // Rate Timer Initialization
-        this->loop_timer = this->create_wall_timer(std::chrono::milliseconds(20), std::bind(&ArduinoNode::read_and_publish, this));
+        this->loop_timer = this->create_wall_timer(20ms, std::bind(&ArduinoNode::read_and_publish, this));
 
+        // Parameter Setup
+        load_parameter();
         RCLCPP_INFO(this->get_logger(), "Arduino node started");
     }
 
 private:
+    void load_parameter() {
+        std::lock_guard<std::mutex> lock(this->mutex);
+        
+        // Load parameters using ROS2 parameter system
+        this->port = this->get_parameter("arduino.port").as_string();
+        this->baudrate = this->get_parameter("arduino.baudrate").as_int();
+        
+        RCLCPP_INFO(get_logger(), "Parameters loaded - Port: %s, Baudrate: %d", this->port.c_str(), this->baudrate);
+    }
+    
+    void param_callback() {
+        load_parameter();
+        RCLCPP_INFO(this->get_logger(), "Parameters reloaded");
+    }
+    
     void global_pos_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->current_position = *msg;
     }
 
@@ -143,6 +164,8 @@ private:
     }
 
     void waypoint_fetcher(int part) {
+        std::lock_guard<std::mutex> lock(this->mutex);
+        
         auto current_time = this->now();
         if (part <= 1500) {
             this->waypoint_fetch_time = rclcpp::Time(0);
@@ -346,6 +369,10 @@ private:
 
     // Rate Timer Declaration
     rclcpp::TimerBase::SharedPtr loop_timer;
+    rclcpp::TimerBase::SharedPtr param_timer;
+    
+    // Mutex Declaration
+    std::mutex mutex;
 
     // Serial Declaration
     serial::Serial ser;

@@ -15,18 +15,30 @@ def generate_launch_description():
                         'mission.yaml'
                     )
 
+    monitoring_param = os.path.join(
+                        get_package_share_directory('launcher'),
+                        'config',
+                        'monitoring.yaml'
+                    )
+
+    navigation_param = os.path.join(
+                        get_package_share_directory('launcher'),
+                        'config',
+                        'navigation.yaml'
+                    )
+
+    perception_param = os.path.join(
+                        get_package_share_directory('launcher'),
+                        'config',
+                        'perception.yaml'
+                    )
+
     sensor_param = os.path.join(
                         get_package_share_directory('launcher'),
                         'config',
                         'sensor.yaml'
                     )
-    
-    vision_param = os.path.join(
-                        get_package_share_directory('launcher'),
-                        'config',
-                        'vision.yaml'
-                    )
-    
+
     return LaunchDescription([
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
@@ -39,22 +51,23 @@ def generate_launch_description():
         
         # MISSION PACKAGE
         
-        Node(
-            package='mission',
-            executable='gps_rtk_planner',
-            name='planner_node',
-            output='screen',
-            emulate_tty=True,
-            parameters=[mission_param]
-        ),
         # Node(
         #     package='mission',
-        #     executable='gps_vision_planner',
+        #     executable='gps_rtk_planner',
         #     name='planner_node',
         #     output='screen',
         #     emulate_tty=True,
         #     parameters=[mission_param]
         # ),
+        
+        Node(
+            package='mission',
+            executable='gps_vision_planner',
+            name='planner_node',
+            output='screen',
+            emulate_tty=True,
+            parameters=[mission_param]
+        ),
         
         
         # MONITORING PACKAGE
@@ -97,7 +110,7 @@ def generate_launch_description():
             name='gps_navigation',
             output='screen',
             emulate_tty=True,
-            parameters=[mission_param]
+            parameters=[navigation_param]
         ),
         Node(
             package='navigation',
@@ -105,7 +118,7 @@ def generate_launch_description():
             name='vision_navigation',
             output='screen',
             emulate_tty=True,
-            parameters=[vision_param]
+            parameters=[navigation_param]
         ),
         
         
@@ -131,7 +144,7 @@ def generate_launch_description():
             name='vision_node',
             output='screen',
             emulate_tty=True,
-            parameters=[vision_param]
+            parameters=[perception_param]
         ),
         
         

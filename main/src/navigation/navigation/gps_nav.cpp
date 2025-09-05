@@ -1,14 +1,15 @@
+#define _USE_MATH_DEFINES
 #include <cmath>
-#include <geographic_msgs/msg/geo_pose_stamped.hpp>
-#include <mutex>
-#include <rclcpp/qos.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp/qos.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <geographic_msgs/msg/geo_pose_stamped.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/string.hpp>
-#include <tf2/LinearMath/Quaternion.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+#include <mutex>
 #include <vector>
 
 using namespace std::chrono_literals;
@@ -29,7 +30,7 @@ public:
         this->declare_parameter<int>("navigation.waypoints_A.count", 0);
         this->declare_parameter<int>("navigation.waypoints_B.count", 0);
 
-        for (int i = 0; i < 10; ++i) {
+        for (int i = 0; i < 7; ++i) {
             this->declare_parameter<double>("navigation.waypoints_A.waypoint_" + std::to_string(i) + ".latitude", 0.0);
             this->declare_parameter<double>("navigation.waypoints_A.waypoint_" + std::to_string(i) + ".longitude", 0.0);
             this->declare_parameter<double>("navigation.waypoints_A.waypoint_" + std::to_string(i) + ".altitude", 0.0);
@@ -40,21 +41,21 @@ public:
         }
 
         // Subscriber Initialization
-        this->global_pos_sub = create_subscription<sensor_msgs::msg::NavSatFix>("/mavros/global_position/global", rclcpp::SensorDataQoS(), std::bind(&GPSNavigation::global_pos_callback, this, std::placeholders::_1));
-        this->mode_sub = create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::mode_callback, this, std::placeholders::_1));
-        this->gps_control_sub = create_subscription<std_msgs::msg::Bool>("/robot/control/gps", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::gps_control_callback, this, std::placeholders::_1));
-        this->compass_control_sub = create_subscription<std_msgs::msg::Bool>("/robot/control/compass", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::compass_control_callback, this, std::placeholders::_1));
-        this->vision_control_sub = create_subscription<std_msgs::msg::Bool>("/robot/control/vision", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::vision_control_callback, this, std::placeholders::_1));
-        this->trajectory_sub = create_subscription<std_msgs::msg::String>("/robot/trajectory", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::trajectory_callback, this, std::placeholders::_1));
-        this->reset_mission_sub = create_subscription<std_msgs::msg::Bool>("/mission/reset", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::reset_mission_callback, this, std::placeholders::_1));
+        this->global_pos_sub = this->create_subscription<sensor_msgs::msg::NavSatFix>("/mavros/global_position/global", rclcpp::SensorDataQoS(), std::bind(&GPSNavigation::global_pos_callback, this, std::placeholders::_1));
+        this->mode_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::mode_callback, this, std::placeholders::_1));
+        this->gps_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/gps", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::gps_control_callback, this, std::placeholders::_1));
+        this->compass_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/compass", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::compass_control_callback, this, std::placeholders::_1));
+        this->vision_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/vision", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::vision_control_callback, this, std::placeholders::_1));
+        this->trajectory_sub = this->create_subscription<std_msgs::msg::String>("/robot/trajectory", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::trajectory_callback, this, std::placeholders::_1));
+        this->reset_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/mission/reset", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::reset_mission_callback, this, std::placeholders::_1));
 
         // Publisher Initialization
-        this->geopose_pub = create_publisher<geographic_msgs::msg::GeoPoseStamped>("mavros/setpoint_position/global", rclcpp::ServicesQoS());
-        this->curr_wp_pub = create_publisher<std_msgs::msg::Int32>("/robot/position/waypoint", rclcpp::ServicesQoS());
+        this->geopose_pub = this->create_publisher<geographic_msgs::msg::GeoPoseStamped>("mavros/setpoint_position/global", rclcpp::ServicesQoS());
+        this->curr_wp_pub = this->create_publisher<std_msgs::msg::Int32>("/robot/position/waypoint", rclcpp::ServicesQoS());
 
         // Rate Timer Initialization
-        this->loop_timer = create_wall_timer(20ms, std::bind(&GPSNavigation::runner, this));
-        this->param_timer = create_wall_timer(1s, std::bind(&GPSNavigation::param_callback, this));
+        this->loop_timer = this->create_wall_timer(20ms, std::bind(&GPSNavigation::runner, this));
+        this->param_timer = this->create_wall_timer(1s, std::bind(&GPSNavigation::param_callback, this));
 
         // Parameter Setup
         load_parameter();
@@ -68,19 +69,19 @@ private:
 
         try {
             // Get the number of waypoints
-            int count = get_parameter(prefix + ".count").as_int();
+            int count = this->get_parameter(prefix + ".count").as_int();
 
             // Load each waypoint
             for (int i = 0; i < count; ++i) {
                 std::string wp_prefix = prefix + ".waypoint_" + std::to_string(i);
                 WayPoint wp;
-                wp.latitude = get_parameter(wp_prefix + ".latitude").as_double();
-                wp.longitude = get_parameter(wp_prefix + ".longitude").as_double();
-                wp.altitude = get_parameter(wp_prefix + ".altitude").as_double();
+                wp.latitude = this->get_parameter(wp_prefix + ".latitude").as_double();
+                wp.longitude = this->get_parameter(wp_prefix + ".longitude").as_double();
+                wp.altitude = this->get_parameter(wp_prefix + ".altitude").as_double();
                 waypoints.push_back(wp);
             }
         } catch (const rclcpp::ParameterTypeException& e) {
-            RCLCPP_ERROR(get_logger(), "Failed to load waypoints for trajectory %s: %s", trajectory.c_str(), e.what());
+            RCLCPP_ERROR(this->get_logger(), "Failed to load waypoints for trajectory %s: %s", trajectory.c_str(), e.what());
         }
 
         return waypoints;
@@ -90,7 +91,7 @@ private:
         std::lock_guard<std::mutex> lock(this->mutex);
 
         // Load parameters using ROS2 parameter system
-        this->radius = get_parameter("navigation.radius").as_double();
+        this->radius = this->get_parameter("navigation.radius").as_double();
         this->waypoints_A = load_waypoints("A");
         this->waypoints_B = load_waypoints("B");
 
@@ -99,7 +100,7 @@ private:
 
     void param_callback() {
         load_parameter();
-        RCLCPP_INFO(get_logger(), "Parameters reloaded");
+        RCLCPP_INFO(this->get_logger(), "Parameters reloaded");
     }
 
     void global_pos_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
@@ -137,7 +138,7 @@ private:
             std::lock_guard<std::mutex> lock(this->mutex);
             this->current_waypoint = 0;
             this->is_finish = false;
-            RCLCPP_INFO(get_logger(), "NAV: Successfully Reset Mission!");
+            RCLCPP_INFO(this->get_logger(), "G-NAV: Successfully Reset Mission!");
         }
     }
 
@@ -205,12 +206,12 @@ private:
                         auto wp_msg = std_msgs::msg::Int32();
                         wp_msg.data = this->current_waypoint + 1;
                         this->curr_wp_pub->publish(wp_msg);
-                        RCLCPP_INFO(get_logger(), "Reached last waypoint: Moving to Dock");
+                        RCLCPP_INFO(this->get_logger(), "Reached last waypoint: Moving to Dock");
                     }
                 }
             }
         } else if (this->is_finish) {
-            RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "NAV_FINISH: Road to Finish!");
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "NAV_FINISH: Road to Finish!");
         }
     }
 

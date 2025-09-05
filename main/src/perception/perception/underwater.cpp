@@ -1,10 +1,10 @@
-#include <cv_bridge/cv_bridge.h>
-#include <opencv2/opencv.hpp>
-#include <rclcpp/qos.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <rclcpp/qos.hpp>
 #include <sensor_msgs/msg/image.hpp>
-#include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <opencv2/opencv.hpp>
+#include <cv_bridge/cv_bridge.h>
 
 using namespace std::chrono_literals;
 
@@ -14,23 +14,23 @@ public:
         : Node("underwater_node") {
 
         // Subscriber Initialization
-        this->mode_sub = create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::mode_callback, this, std::placeholders::_1));
-        this->gps_control_sub = create_subscription<std_msgs::msg::Bool>("/robot/control/gps", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::gps_control_callback, this, std::placeholders::_1));
-        this->compass_control_sub = create_subscription<std_msgs::msg::Bool>("/robot/control/compass", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::compass_control_callback, this, std::placeholders::_1));
-        this->vision_control_sub = create_subscription<std_msgs::msg::Bool>("/robot/control/vision", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::vision_control_callback, this, std::placeholders::_1));
-        this->lidar_sub = create_subscription<std_msgs::msg::Bool>("/robot/lidar", rclcpp::SensorDataQoS(), std::bind(&UnderwaterNode::lidar_callback, this, std::placeholders::_1));
-        this->mission_sub = create_subscription<std_msgs::msg::String>("/robot/mission", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::mission_callback, this, std::placeholders::_1));
-        this->reset_mission_sub = create_subscription<std_msgs::msg::Bool>("/mission/reset", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::reset_mission_callback, this, std::placeholders::_1));
+        this->mode_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::mode_callback, this, std::placeholders::_1));
+        this->gps_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/gps", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::gps_control_callback, this, std::placeholders::_1));
+        this->compass_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/compass", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::compass_control_callback, this, std::placeholders::_1));
+        this->vision_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/vision", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::vision_control_callback, this, std::placeholders::_1));
+        this->lidar_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/lidar", rclcpp::SensorDataQoS(), std::bind(&UnderwaterNode::lidar_callback, this, std::placeholders::_1));
+        this->mission_sub = this->create_subscription<std_msgs::msg::String>("/robot/mission", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::mission_callback, this, std::placeholders::_1));
+        this->reset_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/mission/reset", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::reset_mission_callback, this, std::placeholders::_1));
 
         // Publisher Initialization
-        this->underwater_image_pub = create_publisher<sensor_msgs::msg::Image>("/robot/image/underwater", rclcpp::ServicesQoS());
-        this->underwater_mission_pub = create_publisher<std_msgs::msg::Bool>("/robot/mission/underwater", rclcpp::ServicesQoS());
-        this->mission_pub = create_publisher<std_msgs::msg::String>("/robot/mission", rclcpp::ServicesQoS());
+        this->underwater_image_pub = this->create_publisher<sensor_msgs::msg::Image>("/robot/image/underwater", rclcpp::ServicesQoS());
+        this->underwater_mission_pub = this->create_publisher<std_msgs::msg::Bool>("/robot/mission/underwater", rclcpp::ServicesQoS());
+        this->mission_pub = this->create_publisher<std_msgs::msg::String>("/robot/mission", rclcpp::ServicesQoS());
 
         // Rate Timer Initialization
-        this->loop_timer = create_wall_timer(50ms, std::bind(&UnderwaterNode::runner, this));
+        this->loop_timer = this->create_wall_timer(50ms, std::bind(&UnderwaterNode::runner, this));
 
-        RCLCPP_INFO(get_logger(), "Underwater cam node started");
+        RCLCPP_INFO(this->get_logger(), "Underwater cam node started");
     }
 
 private:
@@ -62,7 +62,7 @@ private:
         if (msg->data) {
             this->mission = "";
             this->is_underwater = false;
-            RCLCPP_INFO(get_logger(), "U-VIZ: Successfully Reset Mission!");
+            RCLCPP_INFO(this->get_logger(), "U-VIZ: Successfully Reset Mission!");
         }
     }
 
@@ -78,7 +78,7 @@ private:
                         auto img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame).toImageMsg();
                         this->underwater_image_pub->publish(*img_msg);
 
-                        // Commented out like in original: mission_pub_->publish("Docking")
+                        // Commented out like in original: this->mission_pub->publish("Docking")
                     }
                 }
             }
@@ -90,9 +90,9 @@ private:
         static bool camera_initialized = false;
 
         if (!camera_initialized) {
-            this->cam.open(1);
+            this->cam.open(2); // Use camera 2 for underwater imaging
             if (!this->cam.isOpened()) {
-                RCLCPP_ERROR(get_logger(), "Failed to open underwater camera");
+                RCLCPP_ERROR(this->get_logger(), "Failed to open underwater camera");
                 return;
             }
             this->cam.set(cv::CAP_PROP_FRAME_WIDTH, this->WIDTH);
@@ -135,6 +135,7 @@ private:
     int HEIGHT = 480;
 
     // Variable Initialization
+    cv::VideoCapture cam;
     bool auto_mode = true;
     bool gps_control = false;
     bool compass_control = false;
@@ -142,7 +143,6 @@ private:
     bool lidar = false;
     bool is_underwater = false;
     std::string mission = "";
-    cv::VideoCapture cam;
 };
 
 int main(int argc, char** argv) {
