@@ -28,15 +28,6 @@ find_package(sensor_msgs REQUIRED)
 find_package(OpenCV REQUIRED)
 
 # C++ executables
-add_executable(surface ${PROJECT_NAME}/surface.cpp)
-ament_target_dependencies(surface
-  rclcpp
-  std_msgs
-  sensor_msgs
-  cv_bridge
-  OpenCV
-)
-
 add_executable(underwater ${PROJECT_NAME}/underwater.cpp)
 ament_target_dependencies(underwater
   rclcpp
@@ -48,7 +39,6 @@ ament_target_dependencies(underwater
 
 # Install C++ executables
 install(TARGETS
-  surface
   underwater
   DESTINATION lib/${PROJECT_NAME}
 )

@@ -73,12 +73,9 @@ private:
                 if (this->mission == "Underwater Imaging") {
                     if (this->lidar && !this->is_underwater) {
                         this->is_underwater = true;
-
-                        // Convert OpenCV Mat to ROS Image message
                         auto img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame).toImageMsg();
                         this->underwater_image_pub->publish(*img_msg);
-
-                        // Commented out like in original: this->mission_pub->publish("Docking")
+                        RCLCPP_INFO(this->get_logger(), "U-VIZ: Underwater Imaging!");
                     }
                 }
             }
@@ -90,7 +87,7 @@ private:
         static bool camera_initialized = false;
 
         if (!camera_initialized) {
-            this->cam.open(2); // Use camera 2 for underwater imaging
+            this->cam.open(1);  // use camera 1
             if (!this->cam.isOpened()) {
                 RCLCPP_ERROR(this->get_logger(), "Failed to open underwater camera");
                 return;

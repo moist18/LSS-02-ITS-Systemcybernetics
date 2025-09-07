@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import numpy as np
-import math
 import cv2
 import threading
 import time
@@ -58,6 +57,11 @@ class VisionNode(Node):
         self.declare_parameter('vision.rc.max_value', [2000, 1800])
 
         # Subscriber Initialization  
+        self.mode_sub = self.create_subscription(Bool, '/robot/mode', self.mode_callback, qos_profile_services_default)
+        self.gps_control_sub = self.create_subscription(Bool, '/robot/control/gps', self.gps_control_callback, qos_profile_services_default)
+        self.compass_control_sub = self.create_subscription(Bool, '/robot/control/compass', self.compass_control_callback, qos_profile_services_default)
+        self.vision_control_sub = self.create_subscription(Bool, '/robot/control/vision', self.vision_control_callback, qos_profile_services_default)
+        self.lidar_sub = self.create_subscription(Bool, '/robot/lidar', self.lidar_callback, qos_profile_services_default)
         self.mission_sub = self.create_subscription(String, '/robot/mission', self.mission_callback, qos_profile_services_default)
         self.docking_sub = self.create_subscription(String, '/detect/docking', self.docking_callback, qos_profile_services_default)
         self.left_buoy_sub = self.create_subscription(String, '/detect/left_buoy', self.left_buoy_callback, qos_profile_services_default)
@@ -66,6 +70,8 @@ class VisionNode(Node):
 
         # Publisher Initialization
         self.navigation_vision_pub = self.create_publisher(Image, '/robot/vision/navigation', qos_profile_services_default)
+        self.surface_image_pub = self.create_publisher(Image, '/robot/image/surface', qos_profile_services_default)
+        self.surface_mission_pub = self.create_publisher(Bool, '/robot/mission/surface', qos_profile_services_default)
         self.obj_detection_pub = self.create_publisher(Bool, '/detect/object/bool', qos_profile_services_default)
         self.raw_yaw_pub = self.create_publisher(Int32, '/robot/vision/raw_yaw', qos_profile_services_default)
 
@@ -97,6 +103,15 @@ class VisionNode(Node):
         self.bridge = CvBridge()
         self.vis = BBoxVisualization(self.cls_dict)
 
+        # Control State Variables
+        self.auto_mode = True
+        self.gps_control = False
+        self.compass_control = False
+        self.vision_control = False
+        self.lidar = False
+        self.is_surface = False
+        
+        # Mission Variables
         self.mission = ''
         self.docking = 'green_dock'
         self.left_buoy = 'green_buoy'
@@ -105,7 +120,7 @@ class VisionNode(Node):
         self.fps = 0
 
         # Camera Configuration
-        self.cam = cv2.VideoCapture(0)
+        self.cam = cv2.VideoCapture(0)  # use camera 0
         self.cam.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self.cam.set(cv2.CAP_PROP_FPS, 30)
         self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, self.WIDTH)
@@ -141,17 +156,15 @@ class VisionNode(Node):
             if self.frame_buffer:
                 try:
                     frame = self.frame_buffer.popleft()
-                    result = model(frame, imgsz=self.detection_imgsz, conf=self.detection_conf, iou=self.detection_iou, stream=True, half=True, verbose=False)
+                    result = model(frame, imgsz=self.detection_imgsz, conf=self.detection_conf, iou=self.detection_iou, half=True, verbose=False)
 
                     # Store result with timestamp for latency tracking
                     if len(self.result_buffer) >= self.result_buffer.maxlen:
                         self.result_buffer.popleft()
 
-                    # Convert generator to list and store with metadata
-                    result_list = list(result)
-                    if result_list:
-                        self.result_buffer.append((frame, result_list[0], time.time()))
-                        self.stats['processed'] += 1
+                    # Store result with metadata
+                    self.result_buffer.append((frame, result[0], time.time()))
+                    self.stats['processed'] += 1
 
                 except IndexError:
                     # No frames available, brief pause
@@ -192,6 +205,21 @@ class VisionNode(Node):
 
     def param_callback(self):
         self.load_parameter()
+    
+    def mode_callback(self, msg):
+        self.auto_mode = msg.data
+    
+    def gps_control_callback(self, msg):
+        self.gps_control = msg.data
+    
+    def compass_control_callback(self, msg):
+        self.compass_control = msg.data
+    
+    def vision_control_callback(self, msg):
+        self.vision_control = msg.data
+    
+    def lidar_callback(self, msg):
+        self.lidar = msg.data
 
     def mission_callback(self, msg):
         self.mission = msg.data
@@ -208,7 +236,17 @@ class VisionNode(Node):
     def reset_mission_callback(self, msg):
         if msg.data:
             self.mission = ""
+            self.is_surface = False
             self.get_logger().info("VIZ: Successfully Reset Mission!")
+
+    def _handle_surface_imaging(self, img_msg):
+        if self.auto_mode:
+            if not self.gps_control and not self.compass_control and self.vision_control:
+                if self.mission == "Surface Imaging":
+                    if self.lidar and not self.is_surface:
+                        self.is_surface = True
+                        self.surface_image_pub.publish(img_msg)
+                        self.get_logger().info("S-VIZ: Surface Imaging!")
 
     def processor(self, input_frame):
         # Add frame to processing buffer for worker threads
@@ -255,15 +293,20 @@ class VisionNode(Node):
                 # Publish processed image
                 img_msg = self.bridge.cv2_to_imgmsg(frame, 'bgr8')
                 self.navigation_vision_pub.publish(img_msg)
+                
+                # Surface imaging logic
+                self._handle_surface_imaging(img_msg)
 
             except IndexError:
                 # No processed results available, use input frame
                 img_msg = self.bridge.cv2_to_imgmsg(input_frame, 'bgr8')
                 self.navigation_vision_pub.publish(img_msg)
+                self._handle_surface_imaging(img_msg)
         else:
             # No processed results available, use input frame
             img_msg = self.bridge.cv2_to_imgmsg(input_frame, 'bgr8')
             self.navigation_vision_pub.publish(img_msg)
+            self._handle_surface_imaging(img_msg)
 
         # Publish detection results for navigation node
         self.obj_detection_pub.publish(Bool(data=objects_detected))
@@ -283,6 +326,9 @@ class VisionNode(Node):
         
         self.processor(frame)
         self.calculate_fps()
+        
+        # Publish surface mission status
+        self.surface_mission_pub.publish(Bool(data=self.is_surface))
 
     def destroy_node(self):
         self.get_logger().info("Shutting down RKNN-optimized vision node...")
@@ -294,7 +340,7 @@ class VisionNode(Node):
         if hasattr(self, 'workers'):
             for i, worker in enumerate(self.workers):
                 try:
-                    worker.join(timeout=2.0)  # 2 second timeout
+                    worker.join(timeout=2.0)
                     if worker.is_alive():
                         self.get_logger().warn(f"Worker {i+1} did not stop gracefully")
                 except Exception as e:

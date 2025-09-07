@@ -126,13 +126,6 @@ def generate_launch_description():
         
         Node(
             package='perception',
-            executable='surface',
-            name='surface_node',
-            output='screen',
-            emulate_tty=True
-        ),
-        Node(
-            package='perception',
             executable='underwater',
             name='underwater_node',
             output='screen',
