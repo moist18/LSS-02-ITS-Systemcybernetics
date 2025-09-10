@@ -1,19 +1,24 @@
-#include <rclcpp/rclcpp.hpp>
-#include <rclcpp/qos.hpp>
+#include <array>
+#include <chrono>
 #include <mavros_msgs/msg/override_rc_in.hpp>
-#include <std_msgs/msg/string.hpp>
+#include <rclcpp/qos.hpp>
+#include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/int32.hpp>
-#include <chrono>
+#include <std_msgs/msg/string.hpp>
 #include <vector>
-#include <array>
 
 using namespace std::chrono_literals;
 
 class PID {
 public:
     PID(rclcpp::Clock::SharedPtr clock, double kp, double ki, double kd, double min_output, double max_output)
-        : clock(clock), kp(kp), ki(ki), kd(kd), min_output(min_output), max_output(max_output) {
+        : clock(clock)
+        , kp(kp)
+        , ki(ki)
+        , kd(kd)
+        , min_output(min_output)
+        , max_output(max_output) {
         reset();
     }
 
@@ -27,16 +32,16 @@ public:
     double compute(double error) {
         auto current_time = this->clock->now().nanoseconds() / 1e9;
         double dt = std::max(current_time - this->prev_time, 1e-6);
-        
+
         this->integral += error * dt;
         double derivative = (error - this->prev_error) / dt;
-        
+
         double output = this->kp * error + this->ki * this->integral + this->kd * derivative;
         output = std::max(this->min_output, std::min(this->max_output, output));
-        
+
         this->prev_error = error;
         this->prev_time = current_time;
-        
+
         return output;
     }
 
@@ -53,10 +58,10 @@ public:
         : Node("vision_navigation") {
 
         // RC Parameter Declaration
-        this->declare_parameter<std::vector<int64_t>>("vision.rc.throttle", std::vector<int64_t>{2000, 1700});
-        this->declare_parameter<std::vector<int64_t>>("vision.rc.min_value", std::vector<int64_t>{1000, 1200});
+        this->declare_parameter<std::vector<int64_t>>("vision.rc.throttle", std::vector<int64_t> { 2000, 1700 });
+        this->declare_parameter<std::vector<int64_t>>("vision.rc.min_value", std::vector<int64_t> { 1000, 1200 });
         this->declare_parameter<int>("vision.rc.mid_value", 1500);
-        this->declare_parameter<std::vector<int64_t>>("vision.rc.max_value", std::vector<int64_t>{2000, 1800});
+        this->declare_parameter<std::vector<int64_t>>("vision.rc.max_value", std::vector<int64_t> { 2000, 1800 });
 
         // Docking Timer Parameter Declaration
         this->declare_parameter<double>("vision.timer.docking", 5.0);
@@ -67,6 +72,9 @@ public:
         this->declare_parameter<double>("vision.pid.yaw.kd", 0.1);
         this->declare_parameter<double>("vision.pid.yaw.min_output", -1.0);
         this->declare_parameter<double>("vision.pid.yaw.max_output", 1.0);
+
+        // Parameter Setup
+        this->load_parameter();
 
         // Subscriber Initialization
         this->mode_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&VisionNavigation::mode_callback, this, std::placeholders::_1));
@@ -88,9 +96,6 @@ public:
         this->loop_timer = this->create_wall_timer(50ms, std::bind(&VisionNavigation::runner, this));
         this->param_timer = this->create_wall_timer(1s, std::bind(&VisionNavigation::param_callback, this));
 
-        // Load parameters and initialize
-        this->load_parameter();
-        
         RCLCPP_INFO(this->get_logger(), "Vision Navigation node started");
     }
 
@@ -98,29 +103,29 @@ private:
     void load_parameter() {
         // RC Parameter Initialization
         this->rc_channels_default.fill(65535);
-        
+
         auto throttle_param = this->get_parameter("vision.rc.throttle").as_integer_array();
-        this->rc_throttle = {static_cast<int>(throttle_param[0]), static_cast<int>(throttle_param[1])};
-        
+        this->rc_throttle = { static_cast<int>(throttle_param[0]), static_cast<int>(throttle_param[1]) };
+
         auto min_value_param = this->get_parameter("vision.rc.min_value").as_integer_array();
-        this->min_rc_value = {static_cast<int>(min_value_param[0]), static_cast<int>(min_value_param[1])};
-        
+        this->min_rc_value = { static_cast<int>(min_value_param[0]), static_cast<int>(min_value_param[1]) };
+
         this->mid_rc_value = this->get_parameter("vision.rc.mid_value").as_int();
-        
+
         auto max_value_param = this->get_parameter("vision.rc.max_value").as_integer_array();
-        this->max_rc_value = {static_cast<int>(max_value_param[0]), static_cast<int>(max_value_param[1])};
-        
+        this->max_rc_value = { static_cast<int>(max_value_param[0]), static_cast<int>(max_value_param[1]) };
+
         // Docking Timer Parameter Initialization
         this->dock_duration = this->get_parameter("vision.timer.docking").as_double();
-        
+
         // PID Parameter Initialization
         double yaw_kp = this->get_parameter("vision.pid.yaw.kp").as_double();
         double yaw_ki = this->get_parameter("vision.pid.yaw.ki").as_double();
         double yaw_kd = this->get_parameter("vision.pid.yaw.kd").as_double();
         double yaw_min = this->get_parameter("vision.pid.yaw.min_output").as_double();
         double yaw_max = this->get_parameter("vision.pid.yaw.max_output").as_double();
-        
-        this->pid_yaw = std::make_unique<PID>(this->get_clock(), yaw_kp, yaw_ki, yaw_kd, yaw_min, yaw_max);    
+
+        this->pid_yaw = std::make_unique<PID>(this->get_clock(), yaw_kp, yaw_ki, yaw_kd, yaw_min, yaw_max);
     }
 
     void param_callback() {
@@ -197,7 +202,7 @@ private:
     void runner() {
         int rc_yaw = this->mid_rc_value;
         int rc_throttle = 1500;
-        
+
         if (this->objects_detected) {
             int mission_index = (this->mission == "Floating Ball") ? 0 : 1;
             double yaw_error = static_cast<double>(this->raw_yaw - this->mid_rc_value) / (this->max_rc_value[mission_index] - this->mid_rc_value);
@@ -241,14 +246,14 @@ private:
                         this->dock_start_time = this->now();
                     }
                 }
-            
+
                 if (!this->is_finish) {
                     this->override_control(rc_yaw, 1500, rc_throttle, 1500);
                 } else {
                     // Timer-based finish logic
                     auto current_time = this->now();
                     double elapsed_time = (current_time - this->dock_start_time).seconds();
-                    
+
                     if (elapsed_time >= this->dock_duration) {
                         this->override_control(1500, 1500, 1500, 1500);
                         RCLCPP_INFO(this->get_logger(), "VISION_FINISH: FINISH WOYYY!!!");
@@ -259,7 +264,6 @@ private:
                 }
             }
         }
-
     }
 
     // Subscriber Declaration
@@ -289,7 +293,7 @@ private:
     int mid_rc_value;
     std::vector<int> max_rc_value;
     std::unique_ptr<PID> pid_yaw;
-    
+
     // Timer Variables
     rclcpp::Time dock_start_time;
     double dock_duration;

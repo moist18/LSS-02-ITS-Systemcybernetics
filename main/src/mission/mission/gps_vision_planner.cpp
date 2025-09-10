@@ -1,13 +1,13 @@
-#include <rclcpp/rclcpp.hpp>
-#include <rclcpp/qos.hpp>
+#include <chrono>
+#include <map>
 #include <mavros_msgs/msg/state.hpp>
+#include <memory>
+#include <mutex>
+#include <rclcpp/qos.hpp>
+#include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/string.hpp>
-#include <mutex>
-#include <memory>
-#include <chrono>
-#include <map>
 
 using namespace std::chrono_literals;
 
@@ -31,6 +31,9 @@ public:
         this->declare_parameter<double>("phase_duration.B.4", 3.0);
         this->declare_parameter<double>("phase_duration.B.5", 0.0);
         this->declare_parameter<double>("phase_duration.B.6", 0.0);
+
+        // Parameter Setup
+        load_parameter();
 
         // Subscriber Initialization
         this->state_sub = this->create_subscription<mavros_msgs::msg::State>("/mavros/state", rclcpp::SensorDataQoS(), std::bind(&PlannerNode::state_callback, this, std::placeholders::_1));
@@ -57,8 +60,6 @@ public:
         this->loop_timer = this->create_wall_timer(20ms, std::bind(&PlannerNode::runner, this));
         this->param_timer = this->create_wall_timer(1s, std::bind(&PlannerNode::param_callback, this));
 
-        // Parameter Setup
-        load_parameter();
         RCLCPP_INFO(this->get_logger(), "GPS Vision Planner node started");
     }
 

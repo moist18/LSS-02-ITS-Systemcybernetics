@@ -45,22 +45,24 @@ ament_target_dependencies(gps
   mavros_msgs
 )
 
+add_executable(date ${PROJECT_NAME}/date.cpp)
+ament_target_dependencies(date
+  rclcpp
+  std_msgs
+)
+
 # Install C++ executables
 install(TARGETS
   battery
   cpu
   gps
+  date
   DESTINATION lib/${PROJECT_NAME}
 )
 
 # Python package installation
 ament_python_install_package(${PROJECT_NAME})
 
-# Install Python executables
-install(PROGRAMS
-  ${PROJECT_NAME}/date.py
-  DESTINATION lib/${PROJECT_NAME}
-)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

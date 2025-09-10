@@ -1,14 +1,3 @@
-#include <rclcpp/rclcpp.hpp>
-#include <rclcpp/qos.hpp>
-#include <mavros_msgs/msg/override_rc_in.hpp>
-#include <sensor_msgs/msg/nav_sat_fix.hpp>
-#include <std_msgs/msg/bool.hpp>
-#include <std_msgs/msg/string.hpp>
-#include <serial/serial.h>
-#include <mutex>
-#include <sstream>
-#include <thread>
-#include <vector>
 #include <algorithm>
 #include <chrono>
 #include <ctime>
@@ -16,6 +5,17 @@
 #include <fstream>
 #include <iomanip>
 #include <map>
+#include <mavros_msgs/msg/override_rc_in.hpp>
+#include <mutex>
+#include <rclcpp/qos.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/nav_sat_fix.hpp>
+#include <serial/serial.h>
+#include <sstream>
+#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/string.hpp>
+#include <thread>
+#include <vector>
 
 using namespace std::chrono_literals;
 
@@ -28,6 +28,9 @@ public:
         // Parameter Declaration
         this->declare_parameter<std::string>("arduino.port", "/dev/ttyACM0");
         this->declare_parameter<int>("arduino.baudrate", 9600);
+
+        // Parameter Setup
+        load_parameter();
 
         // Initialize waypoint file system
         this->waypoints_file_path = initialize_waypoints_file();
@@ -43,7 +46,7 @@ public:
         this->global_pos_sub = this->create_subscription<sensor_msgs::msg::NavSatFix>("/mavros/global_position/global", rclcpp::ServicesQoS(), std::bind(&ArduinoNode::global_pos_callback, this, std::placeholders::_1));
 
         // Publisher Initialization
-        this->rc_override_pub = this->create_publisher<mavros_msgs::msg::OverrideRCIn>("/mavros/rc/override", rclcpp::SensorDataQoS());
+        this->rc_override_pub = this->create_publisher<mavros_msgs::msg::OverrideRCIn>("/mavros/rc/override", rclcpp::ServicesQoS());
         this->reset_mission_pub = this->create_publisher<std_msgs::msg::Bool>("/mission/reset", rclcpp::ServicesQoS());
         this->arming_pub = this->create_publisher<std_msgs::msg::Bool>("/robot/arming", rclcpp::ServicesQoS());
         this->mode_pub = this->create_publisher<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS());
@@ -56,28 +59,25 @@ public:
 
         // Rate Timer Initialization
         this->loop_timer = this->create_wall_timer(20ms, std::bind(&ArduinoNode::read_and_publish, this));
-
-        // Parameter Setup
-        load_parameter();
         RCLCPP_INFO(this->get_logger(), "Arduino node started");
     }
 
 private:
     void load_parameter() {
         std::lock_guard<std::mutex> lock(this->mutex);
-        
+
         // Load parameters using ROS2 parameter system
         this->port = this->get_parameter("arduino.port").as_string();
         this->baudrate = this->get_parameter("arduino.baudrate").as_int();
-        
+
         RCLCPP_INFO(get_logger(), "Parameters loaded - Port: %s, Baudrate: %d", this->port.c_str(), this->baudrate);
     }
-    
+
     void param_callback() {
         load_parameter();
         RCLCPP_INFO(this->get_logger(), "Parameters reloaded");
     }
-    
+
     void global_pos_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
         std::lock_guard<std::mutex> lock(this->mutex);
         this->current_position = *msg;
@@ -105,8 +105,8 @@ private:
     }
 
     std::string initialize_waypoints_file() {
-        // Create waypoint directory
-        std::filesystem::path waypoints_dir = std::filesystem::current_path() / "waypoint";
+        // Create waypoint directory in sensor package
+        std::filesystem::path waypoints_dir = std::filesystem::path(__FILE__).parent_path() / "waypoint";
         try {
             if (!std::filesystem::exists(waypoints_dir)) {
                 std::filesystem::create_directories(waypoints_dir);
@@ -163,13 +163,37 @@ private:
         }
     }
 
+    bool is_valid_gps_position() {
+        // Always allow waypoint fetching even if GPS coordinates are 0.0
+        // This will record 0.0, 0.0 as waypoint when GPS is not available
+
+        // Check if coordinates are within valid GPS bounds (if not zero)
+        double lat = this->current_position.latitude;
+        double lon = this->current_position.longitude;
+
+        if (lat != 0.0 && lon != 0.0) {
+            if (lat < -90.0 || lat > 90.0 || lon < -180.0 || lon > 180.0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     void waypoint_fetcher(int part) {
         std::lock_guard<std::mutex> lock(this->mutex);
-        
+
         auto current_time = this->now();
         if (part <= 1500) {
+            // Reset waypoint fetch timing when remote control is in low position
             this->waypoint_fetch_time = rclcpp::Time(0);
-        } else if (part > 1500 && this->current_position.header.stamp.sec != 0) {
+            RCLCPP_DEBUG_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Waypoint fetcher disabled (RC value: %d)", part);
+        } else if (part > 1500) {
+            if (!is_valid_gps_position()) {
+                RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Cannot fetch waypoint: Invalid GPS position (lat: %.8f, lon: %.8f)", this->current_position.latitude, this->current_position.longitude);
+                return;
+            }
+
             if (this->waypoint_fetch_time.nanoseconds() == 0 || (current_time - this->waypoint_fetch_time).seconds() >= 3) {
 
                 std::map<std::string, double> new_waypoint;
@@ -184,10 +208,18 @@ private:
                     write_waypoint_to_file(new_waypoint);
                 }
 
-                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 3000, "Fetched waypoint_%zu: (%.8f, %.8f)", this->waypoint_counter, new_waypoint["latitude"], new_waypoint["longitude"]);
+                // Log different message if GPS coordinates are zero
+                if (this->current_position.latitude == 0.0 && this->current_position.longitude == 0.0) {
+                    RCLCPP_INFO(this->get_logger(), "Fetched waypoint_%zu: (0.0, 0.0) - GPS not available", this->waypoint_counter);
+                } else {
+                    RCLCPP_INFO(this->get_logger(), "Fetched waypoint_%zu: (%.8f, %.8f)", this->waypoint_counter, new_waypoint["latitude"], new_waypoint["longitude"]);
+                }
                 RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 3000, "Total Waypoints: %zu", this->waypoints_list.size());
 
                 this->waypoint_counter++;
+            } else {
+                double time_remaining = 3.0 - (current_time - this->waypoint_fetch_time).seconds();
+                RCLCPP_DEBUG_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Waypoint fetch cooldown: %.1fs remaining", time_remaining);
             }
         }
     }
@@ -370,7 +402,7 @@ private:
     // Rate Timer Declaration
     rclcpp::TimerBase::SharedPtr loop_timer;
     rclcpp::TimerBase::SharedPtr param_timer;
-    
+
     // Mutex Declaration
     std::mutex mutex;
 

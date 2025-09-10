@@ -1,6 +1,6 @@
+#include "mavros_msgs/msg/state.hpp"
 #include "rclcpp/qos.hpp"
 #include "rclcpp/rclcpp.hpp"
-#include "mavros_msgs/msg/state.hpp"
 #include "sensor_msgs/msg/battery_state.hpp"
 #include "std_msgs/msg/float32.hpp"
 #include <mutex>

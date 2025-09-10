@@ -1,10 +1,10 @@
-#include <rclcpp/rclcpp.hpp>
-#include <rclcpp/qos.hpp>
-#include <sensor_msgs/msg/image.hpp>
-#include <std_msgs/msg/string.hpp>
-#include <std_msgs/msg/bool.hpp>
-#include <opencv2/opencv.hpp>
 #include <cv_bridge/cv_bridge.h>
+#include <opencv2/opencv.hpp>
+#include <rclcpp/qos.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/image.hpp>
+#include <std_msgs/msg/bool.hpp>
+#include <std_msgs/msg/string.hpp>
 
 using namespace std::chrono_literals;
 
@@ -87,7 +87,7 @@ private:
         static bool camera_initialized = false;
 
         if (!camera_initialized) {
-            this->cam.open(1);  // use camera 1
+            this->cam.open(1); // use camera 1
             if (!this->cam.isOpened()) {
                 RCLCPP_ERROR(this->get_logger(), "Failed to open underwater camera");
                 return;

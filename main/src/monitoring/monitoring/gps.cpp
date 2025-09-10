@@ -1,10 +1,10 @@
 #include <cmath>
+#include <memory>
+#include <mutex>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <std_msgs/msg/float32_multi_array.hpp>
 #include <std_msgs/msg/float64.hpp>
-#include <mutex>
-#include <memory>
 
 using namespace std::chrono_literals;
 

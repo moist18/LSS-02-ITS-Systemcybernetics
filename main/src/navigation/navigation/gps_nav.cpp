@@ -1,15 +1,15 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
-#include <rclcpp/rclcpp.hpp>
-#include <rclcpp/qos.hpp>
-#include <sensor_msgs/msg/nav_sat_fix.hpp>
-#include <tf2/LinearMath/Quaternion.h>
-#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <geographic_msgs/msg/geo_pose_stamped.hpp>
+#include <mutex>
+#include <rclcpp/qos.hpp>
+#include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/nav_sat_fix.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/int32.hpp>
 #include <std_msgs/msg/string.hpp>
-#include <mutex>
+#include <tf2/LinearMath/Quaternion.h>
+#include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 #include <vector>
 
 using namespace std::chrono_literals;
@@ -40,6 +40,9 @@ public:
             this->declare_parameter<double>("navigation.waypoints_B.waypoint_" + std::to_string(i) + ".altitude", 0.0);
         }
 
+        // Parameter Setup
+        load_parameter();
+
         // Subscriber Initialization
         this->global_pos_sub = this->create_subscription<sensor_msgs::msg::NavSatFix>("/mavros/global_position/global", rclcpp::SensorDataQoS(), std::bind(&GPSNavigation::global_pos_callback, this, std::placeholders::_1));
         this->mode_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::mode_callback, this, std::placeholders::_1));
@@ -57,8 +60,6 @@ public:
         this->loop_timer = this->create_wall_timer(20ms, std::bind(&GPSNavigation::runner, this));
         this->param_timer = this->create_wall_timer(1s, std::bind(&GPSNavigation::param_callback, this));
 
-        // Parameter Setup
-        load_parameter();
         RCLCPP_INFO(this->get_logger(), "GPS Navigation node started");
     }
 

@@ -55,6 +55,9 @@ class VisionNode(Node):
         self.declare_parameter('vision.rc.min_value', [1000, 1200])
         self.declare_parameter('vision.rc.mid_value', 1500)
         self.declare_parameter('vision.rc.max_value', [2000, 1800])
+        
+        # Parameter Setup
+        self.load_parameter()
 
         # Subscriber Initialization  
         self.mode_sub = self.create_subscription(Bool, '/robot/mode', self.mode_callback, qos_profile_services_default)
@@ -131,9 +134,8 @@ class VisionNode(Node):
         self.loop_timer = self.create_timer(1.0/20, self.runner)  # 20 Hz
         self.param_timer = self.create_timer(1.0, self.param_callback)
 
-        # Threading and Parameter Setup
+        # Threading Setup
         self.setup_rknn_threading()
-        self.load_parameter()
         self.get_logger().info("RKNN-optimized Vision node started")
 
     def warm_up_models(self):
