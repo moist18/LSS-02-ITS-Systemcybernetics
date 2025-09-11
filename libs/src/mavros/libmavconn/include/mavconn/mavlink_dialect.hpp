@@ -51,6 +51,7 @@ constexpr auto version = "unknown";
 #include <mavlink/v2.0/development/development.hpp>
 #include <mavlink/v2.0/icarous/icarous.hpp>
 #include <mavlink/v2.0/loweheiser/loweheiser.hpp>
+#include <mavlink/v2.0/marsh/marsh.hpp>
 #include <mavlink/v2.0/matrixpilot/matrixpilot.hpp>
 #include <mavlink/v2.0/paparazzi/paparazzi.hpp>
 #include <mavlink/v2.0/standard/standard.hpp>

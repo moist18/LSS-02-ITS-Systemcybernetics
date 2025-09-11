@@ -90,7 +90,7 @@ public:
         this->reset_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/mission/reset", rclcpp::ServicesQoS(), std::bind(&VisionNavigation::reset_mission_callback, this, std::placeholders::_1));
 
         // Publisher Initialization
-        this->rc_override_pub = this->create_publisher<mavros_msgs::msg::OverrideRCIn>("/mavros/rc/override", rclcpp::SensorDataQoS());
+        this->rc_override_pub = this->create_publisher<mavros_msgs::msg::OverrideRCIn>("/mavros/rc/override", rclcpp::ServicesQoS());
 
         // Rate Timer Initialization
         this->loop_timer = this->create_wall_timer(50ms, std::bind(&VisionNavigation::runner, this));

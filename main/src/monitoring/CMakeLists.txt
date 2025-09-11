@@ -14,9 +14,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 # ROS2 packages
-find_package(ament_cmake_python REQUIRED)
 find_package(ament_cmake REQUIRED)
-find_package(rclpy REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 
@@ -59,10 +57,6 @@ install(TARGETS
   date
   DESTINATION lib/${PROJECT_NAME}
 )
-
-# Python package installation
-ament_python_install_package(${PROJECT_NAME})
-
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
