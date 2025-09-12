@@ -35,7 +35,7 @@ def generate_launch_description():
         
         # Node(
         #     package='perception',
-        #     executable='recorder',
+        #     executable='recorder.py',
         #     name='recorder_node',
         #     output='screen',
         #     emulate_tty=True
@@ -43,7 +43,7 @@ def generate_launch_description():
         
         # Node(
         #     package='perception',
-        #     executable='vision',
+        #     executable='vision.py',
         #     name='vision_node',
         #     output='screen',
         #     emulate_tty=True,

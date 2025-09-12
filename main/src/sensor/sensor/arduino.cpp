@@ -26,7 +26,7 @@ public:
         , buffer("") {
 
         // Parameter Declaration
-        this->declare_parameter<std::string>("arduino.port", "/dev/ttyACM0");
+        this->declare_parameter<std::string>("arduino.port", "/dev/ttyACM1");
         this->declare_parameter<int>("arduino.baudrate", 9600);
 
         // Parameter Setup

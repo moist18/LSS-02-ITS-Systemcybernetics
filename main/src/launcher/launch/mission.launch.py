@@ -133,7 +133,7 @@ def generate_launch_description():
         ),
         Node(
             package='perception',
-            executable='vision',
+            executable='vision.py',
             name='vision_node',
             output='screen',
             emulate_tty=True,

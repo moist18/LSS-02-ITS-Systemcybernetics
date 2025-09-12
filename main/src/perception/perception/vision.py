@@ -21,11 +21,10 @@ FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
-ROOT = Path(os.path.relpath(ROOT, Path.cwd()))
 
 from ultralytics import YOLO
-from utils.novisual import BBoxVisualization  # Competition
-# from utils.visual import BBoxVisualization  # Development
+from perception.utils.novisual import BBoxVisualization  # Competition
+# from perception.utils.visual import BBoxVisualization  # Development
 
 def optimize_rknn_model():
     # Set environment variables for NPU optimization
@@ -131,7 +130,7 @@ class VisionNode(Node):
         self.cam.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
 
         # Rate Timer Initialization
-        self.loop_timer = self.create_timer(1.0/20, self.runner)  # 20 Hz
+        self.loop_timer = self.create_timer(1.0/30, self.runner)  # 30 Hz or 30 FPS
         self.param_timer = self.create_timer(1.0, self.param_callback)
 
         # Threading Setup
@@ -292,6 +291,10 @@ class VisionNode(Node):
                             self.max_rc_value[0 if self.mission == "Floating Ball" else 1]
                         )
 
+                # Debug: Show processed image
+                # cv2.imshow('Vision Debug', frame)
+                # cv2.waitKey(1)
+                
                 # Publish processed image
                 img_msg = self.bridge.cv2_to_imgmsg(frame, 'bgr8')
                 self.navigation_vision_pub.publish(img_msg)
@@ -301,11 +304,21 @@ class VisionNode(Node):
 
             except IndexError:
                 # No processed results available, use input frame
+                
+                # Debug: Show processed image
+                # cv2.imshow('Vision Debug', input_frame)
+                # cv2.waitKey(1)
+                
                 img_msg = self.bridge.cv2_to_imgmsg(input_frame, 'bgr8')
                 self.navigation_vision_pub.publish(img_msg)
                 self._handle_surface_imaging(img_msg)
         else:
             # No processed results available, use input frame
+            
+            # Debug: Show processed image
+            # cv2.imshow('Vision Debug', input_frame)
+            # cv2.waitKey(1)
+            
             img_msg = self.bridge.cv2_to_imgmsg(input_frame, 'bgr8')
             self.navigation_vision_pub.publish(img_msg)
             self._handle_surface_imaging(img_msg)
@@ -318,7 +331,9 @@ class VisionNode(Node):
         current_time = self.get_clock().now().nanoseconds / 1e9
         self.fps = 1 / (current_time - self.prev_time)
         self.prev_time = current_time
-        self.get_logger().info(f"FPS: {int(self.fps)}")
+        
+        # Log FPS with ROS2 throttle (every 5 seconds)
+        self.get_logger().info(f"FPS: {int(self.fps)}", throttle_duration_sec=5)
 
     def runner(self):
         success, frame = self.cam.read()
