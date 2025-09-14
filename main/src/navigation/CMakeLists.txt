@@ -25,12 +25,13 @@ find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(geographic_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 
 # C++ executables
-add_executable(gps_nav ${PROJECT_NAME}/gps_nav.cpp)
-ament_target_dependencies(gps_nav
+add_executable(gps_rtk_nav ${PROJECT_NAME}/gps_rtk_nav.cpp)
+ament_target_dependencies(gps_rtk_nav
   rclcpp
   std_msgs
   mavros_msgs
@@ -38,6 +39,21 @@ ament_target_dependencies(gps_nav
   tf2_ros
   tf2_geometry_msgs
   geometry_msgs
+  geographic_msgs
+  sensor_msgs
+  nav_msgs
+)
+
+add_executable(gps_vision_nav ${PROJECT_NAME}/gps_vision_nav.cpp)
+ament_target_dependencies(gps_vision_nav
+  rclcpp
+  std_msgs
+  mavros_msgs
+  tf2
+  tf2_ros
+  tf2_geometry_msgs
+  geometry_msgs
+  geographic_msgs
   sensor_msgs
   nav_msgs
 )
@@ -51,13 +67,15 @@ ament_target_dependencies(vision_nav
   tf2_ros
   tf2_geometry_msgs
   geometry_msgs
+  geographic_msgs
   sensor_msgs
   nav_msgs
 )
 
 # Install C++ executables
 install(TARGETS
-  gps_nav
+  gps_rtk_nav
+  gps_vision_nav
   vision_nav
   DESTINATION lib/${PROJECT_NAME}
 )

@@ -91,7 +91,7 @@ The project is organized into two main directories:
 
 **Core Components**: 
 - `gps_rtk_planner.cpp`: GPS RTK-based mission planning and execution
-- `gps_vision_planner.cpp`: Vision-integrated mission planning (skeleton)
+- `gps_vision_planner.cpp`: Vision-integrated mission planning
 
 **Functionality**:
 - RTK GPS-based mission execution with high precision positioning

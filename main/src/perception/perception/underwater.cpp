@@ -16,7 +16,6 @@ public:
         // Subscriber Initialization
         this->mode_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::mode_callback, this, std::placeholders::_1));
         this->gps_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/gps", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::gps_control_callback, this, std::placeholders::_1));
-        this->compass_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/compass", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::compass_control_callback, this, std::placeholders::_1));
         this->vision_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/vision", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::vision_control_callback, this, std::placeholders::_1));
         this->lidar_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/lidar", rclcpp::SensorDataQoS(), std::bind(&UnderwaterNode::lidar_callback, this, std::placeholders::_1));
         this->mission_sub = this->create_subscription<std_msgs::msg::String>("/robot/mission", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::mission_callback, this, std::placeholders::_1));
@@ -42,10 +41,6 @@ private:
         this->gps_control = msg->data;
     }
 
-    void compass_control_callback(const std_msgs::msg::Bool::SharedPtr msg) {
-        this->compass_control = msg->data;
-    }
-
     void vision_control_callback(const std_msgs::msg::Bool::SharedPtr msg) {
         this->vision_control = msg->data;
     }
@@ -69,7 +64,7 @@ private:
     // Processor method
     void processor(cv::Mat& frame) {
         if (this->auto_mode) {
-            if (!this->gps_control && !this->compass_control && this->vision_control) {
+            if (!this->gps_control && this->vision_control) {
                 if (this->mission == "Underwater Imaging") {
                     if (this->lidar && !this->is_underwater) {
                         this->is_underwater = true;
@@ -113,7 +108,6 @@ private:
     // Subscriber Declaration
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr mode_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr gps_control_sub;
-    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr compass_control_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr vision_control_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr lidar_sub;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr mission_sub;
@@ -135,7 +129,6 @@ private:
     cv::VideoCapture cam;
     bool auto_mode = true;
     bool gps_control = false;
-    bool compass_control = false;
     bool vision_control = false;
     bool lidar = false;
     bool is_underwater = false;

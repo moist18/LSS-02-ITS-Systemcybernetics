@@ -44,13 +44,13 @@ private:
 
         auto date_data = std_msgs::msg::Float32MultiArray();
         date_data.data = {
-            static_cast<float>(tm.tm_wday),         // Day of week (0=Sunday, 6=Saturday)
-            static_cast<float>(tm.tm_mday),         // Day of month
-            static_cast<float>(tm.tm_mon + 1),      // Month (1-12)
-            static_cast<float>(tm.tm_year + 1900),  // Year
-            static_cast<float>(tm.tm_hour),         // Hour
-            static_cast<float>(tm.tm_min),          // Minute
-            static_cast<float>(tm.tm_sec)           // Second
+            static_cast<float>(tm.tm_wday), // Day of week (0=Sunday, 6=Saturday)
+            static_cast<float>(tm.tm_mday), // Day of month
+            static_cast<float>(tm.tm_mon + 1), // Month (1-12)
+            static_cast<float>(tm.tm_year + 1900), // Year
+            static_cast<float>(tm.tm_hour), // Hour
+            static_cast<float>(tm.tm_min), // Minute
+            static_cast<float>(tm.tm_sec) // Second
         };
 
         this->date_pub->publish(date_data);
