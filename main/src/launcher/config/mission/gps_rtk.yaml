@@ -1,0 +1,4 @@
+/planner_node:
+  ros__parameters:
+    phase_duration:
+      "reverse": 3.0
