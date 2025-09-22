@@ -1,6 +1,6 @@
 #define _USE_MATH_DEFINES
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 #include <mutex>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
