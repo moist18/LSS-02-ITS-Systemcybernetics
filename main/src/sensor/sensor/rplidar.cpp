@@ -1,5 +1,7 @@
-#include <algorithm>
+#define _USE_MATH_DEFINES
 #include <cmath>
+#include <algorithm>
+#include <mutex>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
 #include <std_msgs/msg/bool.hpp>
@@ -12,35 +14,42 @@ public:
         : Node("lidar_node") {
 
         // Parameter Declaration
-        this->declare_parameter<double>("min_range", 0.5);
-        this->declare_parameter<double>("max_range", 2.0);
-        this->declare_parameter<int>("min_point", 5);
-        this->declare_parameter<int>("min_angle", 345);
-        this->declare_parameter<int>("max_angle", 15);
+        this->declare_parameter<double>("lidar.min_range", 0.5);
+        this->declare_parameter<double>("lidar.max_range", 2.0);
+        this->declare_parameter<int>("lidar.min_point", 5);
+        this->declare_parameter<int>("lidar.min_angle", 345);
+        this->declare_parameter<int>("lidar.max_angle", 15);
+
+        // Parameter Setup
+        load_parameter();
 
         // Subscriber Initialization
-        this->laser_sub = create_subscription<sensor_msgs::msg::LaserScan>("/scan", 10, std::bind(&LaserScannerNode::laser_callback, this, std::placeholders::_1));
+        this->laser_sub = this->create_subscription<sensor_msgs::msg::LaserScan>("/scan", 10, std::bind(&LaserScannerNode::laser_callback, this, std::placeholders::_1));
 
         // Publisher Initialization
-        this->lidar_pub = create_publisher<std_msgs::msg::Bool>("/robot/lidar", 1);
+        this->lidar_pub = this->create_publisher<std_msgs::msg::Bool>("/robot/lidar", 1);
 
         // Rate Timer Initialization
-        this->param_timer = create_wall_timer(1s, std::bind(&LaserScannerNode::param_callback, this));
+        this->param_timer = this->create_wall_timer(1s, std::bind(&LaserScannerNode::param_callback, this));
 
-        load_parameter();
+        RCLCPP_INFO(this->get_logger(), "LiDAR node started");
     }
 
 private:
     void load_parameter() {
-        this->min_valid_range = get_parameter("min_range").as_double();
-        this->max_valid_range = get_parameter("max_range").as_double();
-        this->min_valid_point = get_parameter("min_point").as_int();
-        this->min_angle = get_parameter("min_angle").as_int();
-        this->max_angle = get_parameter("max_angle").as_int();
+        std::lock_guard<std::mutex> lock(this->mutex);
+
+        // Load parameters using ROS2 parameter system
+        this->min_valid_range = this->get_parameter("lidar.min_range").as_double();
+        this->max_valid_range = this->get_parameter("lidar.max_range").as_double();
+        this->min_valid_point = this->get_parameter("lidar.min_point").as_int();
+        this->min_angle = this->get_parameter("lidar.min_angle").as_int();
+        this->max_angle = this->get_parameter("lidar.max_angle").as_int();
     }
 
     void param_callback() {
-        load_parameter();
+        this->load_parameter();
+        RCLCPP_INFO(this->get_logger(), "LiDAR parameters reloaded");
     }
 
     bool angle_in_range(int angle_deg) {
@@ -48,6 +57,8 @@ private:
     }
 
     void laser_callback(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
+
         int valid_count = 0;
         int last_angle = 0;
 
@@ -55,15 +66,20 @@ private:
             const float range = msg->ranges[i];
             const float angle_rad = msg->angle_min + i * msg->angle_increment;
 
-            // Convert to normalized degrees
+            // Convert to normalized degrees (same as reference)
             float angle_deg = (angle_rad * 180.0 / M_PI) + 180.0;
             angle_deg = fmod(angle_deg, 360.0);
             const int normalized_angle = static_cast<int>(angle_deg);
 
-            if (!angle_in_range(normalized_angle))
+            // Skip if angle not in range
+            if (!this->angle_in_range(normalized_angle))
                 continue;
+
+            // Skip if range is invalid
             if (std::isinf(range) || std::isnan(range))
                 continue;
+
+            // Skip if range not in valid range (same logic as reference)
             if (range <= this->min_valid_range || range > this->max_valid_range)
                 continue;
 
@@ -77,7 +93,7 @@ private:
         this->lidar_pub->publish(detection_msg);
 
         if (detection_msg.data) {
-            RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "STOP: Object detected in angle %d within %.2f-%.2fm", last_angle, this->min_valid_range, this->max_valid_range);
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "STOP: Object detected in angle %d within %.2f-%.2fm", last_angle, this->min_valid_range, this->max_valid_range);
         }
     }
 
@@ -91,6 +107,7 @@ private:
     rclcpp::TimerBase::SharedPtr param_timer;
 
     // Variable Declaration
+    std::mutex mutex;
     double min_valid_range;
     double max_valid_range;
     int min_valid_point;

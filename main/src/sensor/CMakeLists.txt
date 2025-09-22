@@ -28,14 +28,21 @@ find_package(serial REQUIRED)
 include_directories(/home/ubuntu/ASV-2025/libs/install/serial/include)
 
 # C++ executables
-add_executable(arduino ${PROJECT_NAME}/arduino.cpp)
-ament_target_dependencies(arduino
+add_executable(remote ${PROJECT_NAME}/remote.cpp)
+ament_target_dependencies(remote
   rclcpp
   std_msgs
   mavros_msgs
   sensor_msgs
 )
-target_link_libraries(arduino /home/ubuntu/ASV-2025/libs/build/serial/libserial.a)
+target_link_libraries(remote /home/ubuntu/ASV-2025/libs/build/serial/libserial.a)
+
+add_executable(rplidar ${PROJECT_NAME}/rplidar.cpp)
+ament_target_dependencies(rplidar
+  rclcpp
+  std_msgs
+  sensor_msgs
+)
 
 add_executable(state ${PROJECT_NAME}/state.cpp)
 ament_target_dependencies(state
@@ -46,7 +53,8 @@ ament_target_dependencies(state
 
 # Install C++ executables
 install(TARGETS
-  arduino
+  remote
+  rplidar
   state
   DESTINATION lib/${PROJECT_NAME}
 )

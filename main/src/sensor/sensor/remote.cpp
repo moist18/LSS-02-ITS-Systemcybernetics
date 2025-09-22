@@ -19,10 +19,10 @@
 
 using namespace std::chrono_literals;
 
-class ArduinoNode : public rclcpp::Node {
+class RemoteNode : public rclcpp::Node {
 public:
-    ArduinoNode()
-        : Node("arduino_node")
+    RemoteNode()
+        : Node("remote_node")
         , buffer("") {
 
         // Parameter Declaration
@@ -43,7 +43,7 @@ public:
         }
 
         // Subscriber Initialization
-        this->global_pos_sub = this->create_subscription<sensor_msgs::msg::NavSatFix>("/mavros/global_position/global", rclcpp::SensorDataQoS(), std::bind(&ArduinoNode::global_pos_callback, this, std::placeholders::_1));
+        this->global_pos_sub = this->create_subscription<sensor_msgs::msg::NavSatFix>("/mavros/global_position/global", rclcpp::SensorDataQoS(), std::bind(&RemoteNode::global_pos_callback, this, std::placeholders::_1));
 
         // Publisher Initialization
         this->rc_override_pub = this->create_publisher<mavros_msgs::msg::OverrideRCIn>("/mavros/rc/override", rclcpp::ServicesQoS());
@@ -58,7 +58,7 @@ public:
         this->right_buoy_pub = this->create_publisher<std_msgs::msg::String>("/detect/right_buoy", rclcpp::ServicesQoS());
 
         // Rate Timer Initialization
-        this->loop_timer = this->create_wall_timer(20ms, std::bind(&ArduinoNode::read_and_publish, this));
+        this->loop_timer = this->create_wall_timer(20ms, std::bind(&RemoteNode::read_and_publish, this));
         RCLCPP_INFO(this->get_logger(), "Arduino node started");
     }
 
@@ -75,7 +75,6 @@ private:
 
     void param_callback() {
         load_parameter();
-        RCLCPP_INFO(this->get_logger(), "Parameters reloaded");
     }
 
     void global_pos_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
@@ -427,7 +426,7 @@ private:
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<ArduinoNode>();
+    auto node = std::make_shared<RemoteNode>();
 
     rclcpp::spin(node);
     rclcpp::shutdown();
