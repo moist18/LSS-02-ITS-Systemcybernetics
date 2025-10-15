@@ -1,7 +1,7 @@
 /remote_node:
   ros__parameters:
     arduino:
-      port: "/dev/ttyACM1"
+      port: "/dev/ttyACM0"
       baudrate: 9600
 
 /rplidar_node:

@@ -112,7 +112,7 @@ class VisionNode(Node):
         self.is_surface = False
         
         # Mission Variables
-        self.mission = ''
+        self.mission = 'Floating Ball'
         self.docking = 'green_dock'
         self.left_buoy = 'green_buoy'
         self.right_buoy = 'red_buoy'
@@ -256,6 +256,9 @@ class VisionNode(Node):
         raw_yaw = 1500  # Default mid value
         objects_detected = False
 
+        # Debug state
+        debug_reason = "No result in buffer"
+
         # Try to get processed result from buffer
         if self.result_buffer:
             try:
@@ -264,10 +267,13 @@ class VisionNode(Node):
                 # Check if objects were detected
                 if result and hasattr(result, 'boxes') and len(result.boxes) > 0:
                     objects_detected = True
+                    debug_reason = f"Detected {len(result.boxes)} objects"
+                else:
+                    debug_reason = "No objects in result"
 
                 # Apply visualization and get raw yaw data
                 if result:
-                    frame = result.plot()  # Competition
+                    # frame = result.plot()  # Competition (optional)
                     if self.vis and hasattr(result, 'boxes'):
                         frame, raw_yaw, _ = self.vis.processor(  # Competition / Development - is_finish not used
                             frame,
@@ -285,11 +291,12 @@ class VisionNode(Node):
                             self.mid_rc_value,
                             self.max_rc_value[0 if self.mission == "Floating Ball" else 1]
                         )
+                        debug_reason = f"Vision processed: {len(result.boxes)} objs, yaw={raw_yaw}"
 
                 # Debug: Show processed image
                 # cv2.imshow('Vision Debug', frame)
                 # cv2.waitKey(1)
-                
+
                 # Publish processed image
                 img_msg = self.bridge.cv2_to_imgmsg(frame, 'bgr8')
                 self.navigation_vision_pub.publish(img_msg)
@@ -299,28 +306,34 @@ class VisionNode(Node):
 
             except IndexError:
                 # No processed results available, use input frame
-                
+
                 # Debug: Show processed image
                 # cv2.imshow('Vision Debug', input_frame)
                 # cv2.waitKey(1)
-                
+
                 img_msg = self.bridge.cv2_to_imgmsg(input_frame, 'bgr8')
                 self.navigation_vision_pub.publish(img_msg)
                 self._handle_surface_imaging(img_msg)
         else:
             # No processed results available, use input frame
-            
+
             # Debug: Show processed image
             # cv2.imshow('Vision Debug', input_frame)
             # cv2.waitKey(1)
-            
+
             img_msg = self.bridge.cv2_to_imgmsg(input_frame, 'bgr8')
             self.navigation_vision_pub.publish(img_msg)
             self._handle_surface_imaging(img_msg)
 
         # Publish detection results for navigation node
         self.obj_detection_pub.publish(Bool(data=objects_detected))
-        self.raw_yaw_pub.publish(Int32(data=raw_yaw))
+        self.raw_yaw_pub.publish(Int32(data=int(raw_yaw)))
+
+        # Debug logging
+        self.get_logger().info(
+            f"VIZ: Mission='{self.mission}' | Objects={objects_detected} | Raw Yaw={int(raw_yaw)} | {debug_reason}",
+            throttle_duration_sec=1
+        )
 
     def calculate_fps(self):
         current_time = self.get_clock().now().nanoseconds / 1e9

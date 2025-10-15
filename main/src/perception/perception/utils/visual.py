@@ -98,24 +98,24 @@ class BBoxVisualization():
                     cv2.putText(frame, "TURN", (560, 30), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
                     cv2.putText(frame, "RIGHT", (560, 60), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
                     
-            elif detected_cls == left_buoy:
+            elif detected_cls == left_buoy and midpoints[detected_cls] is not None:
                 a, b = midpoints[detected_cls]
                 yaw = batas_tengah + a * ((batas_tengah - batas_bawah) * (1/640))
-                
+
                 cv2.line(frame, (int(width/2), int(height/2)), midpoints[detected_cls], self.WHITE_COLOR, self.THICKNESS)
                 cv2.circle(frame, midpoints[detected_cls], self.CIRCLE_SIZE, self.RED_COLOR, -1)
-                
+
                 if a > int(width/2) - self.single_deadzone:
                     cv2.putText(frame, "TURN", (560, 30), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
                     cv2.putText(frame, "RIGHT", (560, 60), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
-            
-            elif detected_cls == right_buoy:
+
+            elif detected_cls == right_buoy and midpoints[detected_cls] is not None:
                 a, b = midpoints[detected_cls]
                 yaw = batas_bawah + a * ((batas_tengah - batas_bawah) * (1/640))
-                
+
                 cv2.line(frame, (int(width/2), int(height/2)), midpoints[detected_cls], self.WHITE_COLOR, self.THICKNESS)
                 cv2.circle(frame, midpoints[detected_cls], self.CIRCLE_SIZE, self.RED_COLOR, -1)
-                
+
                 if a < int(width/2) + self.single_deadzone:
                     cv2.putText(frame, "TURN", (560, 30), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
                     cv2.putText(frame, "LEFT", (560, 60), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
@@ -138,10 +138,10 @@ class BBoxVisualization():
         # SUBTITUTION OF 'mission.endswith("Imaging")' IF 'blue_box' CLASS EXIST
         
         elif mission == "Surface Imaging":
-            if detected_cls == "green_box":
+            if detected_cls == "green_box" and midpoints[detected_cls] is not None:
                 a, b = midpoints[detected_cls]
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
-        
+
                 cv2.line(frame, (int(width/2), int(height/2)), midpoints[detected_cls], self.WHITE_COLOR, self.THICKNESS)
                 cv2.circle(frame, midpoints[detected_cls], self.CIRCLE_SIZE, self.RED_COLOR, -1)
 
@@ -151,31 +151,31 @@ class BBoxVisualization():
                 elif (a > int(width/2) + self.midpoint_deadzone):
                     cv2.putText(frame, "TURN", (560, 30), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
                     cv2.putText(frame, "RIGHT", (560, 60), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
-        
+
         elif mission == "Underwater Imaging":
-            if detected_cls == "blue_box":
+            if detected_cls == "blue_box" and midpoints[detected_cls] is not None:
                 a, b = midpoints[detected_cls]
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
 
                 cv2.line(frame, (int(width/2), int(height/2)), midpoints[detected_cls], self.WHITE_COLOR, self.THICKNESS)
                 cv2.circle(frame, midpoints[detected_cls], self.CIRCLE_SIZE, self.RED_COLOR, -1)
-        
+
                 if (a < int(width/2) - self.midpoint_deadzone):
                     cv2.putText(frame, "TURN", (560, 30), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
                     cv2.putText(frame, "LEFT", (560, 60), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
                 elif (a > int(width/2) + self.midpoint_deadzone):
                     cv2.putText(frame, "TURN", (560, 30), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
                     cv2.putText(frame, "RIGHT", (560, 60), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
-        
+
         elif mission == "Docking":
             is_finish = True
-            if detected_cls == docking:
+            if detected_cls == docking and midpoints[detected_cls] is not None:
                 a, b = midpoints[detected_cls]
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
-                
+
                 cv2.line(frame, (int(width/2), int(height/2)), midpoints[detected_cls], self.WHITE_COLOR, self.THICKNESS)
                 cv2.circle(frame, midpoints[detected_cls], self.CIRCLE_SIZE, self.RED_COLOR, -1)
-                
+
                 if (a < int(width/2) - self.midpoint_deadzone):
                     cv2.putText(frame, "TURN", (560, 30), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)
                     cv2.putText(frame, "LEFT", (560, 60), self.FONT, self.FONT_SIZE, self.ORANGE_COLOR, self.THICKNESS)

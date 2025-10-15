@@ -41,22 +41,22 @@ def generate_launch_description():
         #     emulate_tty=True
         # ),
         
-        # Node(
-        #     package='perception',
-        #     executable='vision.py',
-        #     name='vision_node',
-        #     output='screen',
-        #     emulate_tty=True,
-        #     parameters=[perception_param]
-        # ),
+        Node(
+            package='perception',
+            executable='vision.py',
+            name='vision_node',
+            output='screen',
+            emulate_tty=True,
+            parameters=[perception_param]
+        ),
         
         
         # SENSOR PACKAGE
         
         Node(
             package='sensor',
-            executable='arduino',
-            name='arduino_node',
+            executable='remote',
+            name='remote_node',
             output='screen',
             emulate_tty=True,
             parameters=[sensor_param]
@@ -67,5 +67,16 @@ def generate_launch_description():
             name='state_node',
             output='screen',
             emulate_tty=True
+        ),
+
+        # NAVIGATION PACKAGE (for testing without mission planner)
+
+        Node(
+            package='navigation',
+            executable='vision_nav',
+            name='vision_navigation_node',
+            output='screen',
+            emulate_tty=True,
+            parameters=[perception_param]
         )
     ])

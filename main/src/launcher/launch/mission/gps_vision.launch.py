@@ -138,8 +138,8 @@ def generate_launch_description():
         
         Node(
             package='sensor',
-            executable='arduino',
-            name='arduino_node',
+            executable='remote',
+            name='remote_node',
             output='screen',
             emulate_tty=True,
             parameters=[sensor_param]

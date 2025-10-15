@@ -203,16 +203,25 @@ private:
             double yaw_error = static_cast<double>(this->raw_yaw - this->mid_rc_value) / (this->max_rc_value[mission_index] - this->mid_rc_value);
             rc_yaw = this->calculate_rc_value(this->pid_yaw->compute(yaw_error));
             rc_throttle = this->rc_throttle[mission_index];
-            RCLCPP_INFO(get_logger(), "RC YAW: %d, Raw Yaw: %d, Error: %f", rc_yaw, this->raw_yaw, yaw_error);
+            RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000,
+                "✅ OBJ DETECTED | Mission: '%s' | Raw Yaw: %d | Yaw Error: %.3f | RC YAW: %d | RC Throttle: %d",
+                this->mission.c_str(), this->raw_yaw, yaw_error, rc_yaw, rc_throttle);
         } else {
             rc_yaw = this->mid_rc_value;
             int mission_index = (this->mission == "Floating Ball") ? 0 : 1;
             rc_throttle = this->rc_throttle[mission_index];
             this->pid_yaw->reset();
+            RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000,
+                "❌ NO OBJECTS | Mission: '%s' | Using defaults: YAW=%d, THROTTLE=%d",
+                this->mission.c_str(), rc_yaw, rc_throttle);
         }
 
         if (this->auto_mode) {
             if (!this->gps_control && this->vision_control) {
+                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 3000,
+                    "🎯 VISION ACTIVE | Auto: %d | GPS: %d | Vision: %d | Mission: '%s'",
+                    this->auto_mode, this->gps_control, this->vision_control, this->mission.c_str());
+
                 if (this->mission == "Surface Imaging") {
                     if (this->lidar && !this->is_surface) {
                         this->is_surface = true;

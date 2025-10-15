@@ -65,12 +65,12 @@ class BBoxVisualization():
             if connector_midpoint and left_buoy and right_buoy:
                 a, b = connector_midpoint
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
-                    
-            elif detected_cls == left_buoy:
+
+            elif detected_cls == left_buoy and midpoints[detected_cls] is not None:
                 a, b = midpoints[detected_cls]
                 yaw = batas_tengah + a * ((batas_tengah - batas_bawah) * (1/640))
-            
-            elif detected_cls == right_buoy:
+
+            elif detected_cls == right_buoy and midpoints[detected_cls] is not None:
                 a, b = midpoints[detected_cls]
                 yaw = batas_bawah + a * ((batas_tengah - batas_bawah) * (1/640))
                 
@@ -82,18 +82,18 @@ class BBoxVisualization():
         # SUBTITUTION OF 'mission.endswith("Imaging")' IF 'blue_box' CLASS EXIST
         
         elif mission == "Surface Imaging":
-            if detected_cls == "green_box":
+            if detected_cls == "green_box" and midpoints[detected_cls] is not None:
                 a, b = midpoints[detected_cls]
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
-        
+
         elif mission == "Underwater Imaging":
-            if detected_cls == "blue_box":
+            if detected_cls == "blue_box" and midpoints[detected_cls] is not None:
                 a, b = midpoints[detected_cls]
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
-        
+
         elif mission == "Docking":
             is_finish = True
-            if detected_cls == docking:
+            if detected_cls == docking and midpoints[detected_cls] is not None:
                 a, b = midpoints[detected_cls]
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
         

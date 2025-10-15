@@ -57,6 +57,9 @@ public:
         this->left_buoy_pub = this->create_publisher<std_msgs::msg::String>("/detect/left_buoy", rclcpp::ServicesQoS());
         this->right_buoy_pub = this->create_publisher<std_msgs::msg::String>("/detect/right_buoy", rclcpp::ServicesQoS());
 
+        // Waypoint update publisher for Web GCS
+        this->waypoint_update_pub = this->create_publisher<std_msgs::msg::String>("/robot/waypoints/update", rclcpp::ServicesQoS());
+
         // Rate Timer Initialization
         this->loop_timer = this->create_wall_timer(20ms, std::bind(&RemoteNode::read_and_publish, this));
         RCLCPP_INFO(this->get_logger(), "Arduino node started");
@@ -162,6 +165,53 @@ private:
         }
     }
 
+    void publish_waypoint_update() {
+        try {
+            // Build JSON message with all waypoints
+            std::stringstream json_msg;
+            json_msg << "{\n";
+            json_msg << "  \"session_id\": \"" << std::filesystem::path(this->waypoints_file_path).stem().string() << "\",\n";
+            json_msg << "  \"timestamp\": \"" << get_current_timestamp() << "\",\n";
+            json_msg << "  \"waypoints\": [\n";
+
+            for (size_t i = 0; i < this->waypoints_list.size(); ++i) {
+                const auto& wp = this->waypoints_list[i];
+                json_msg << "    {\n";
+                json_msg << "      \"id\": " << i << ",\n";
+                json_msg << "      \"latitude\": " << std::fixed << std::setprecision(8) << wp.at("latitude") << ",\n";
+                json_msg << "      \"longitude\": " << std::fixed << std::setprecision(8) << wp.at("longitude") << ",\n";
+                json_msg << "      \"altitude\": " << std::fixed << std::setprecision(2) << wp.at("altitude") << "\n";
+                json_msg << "    }";
+                if (i < this->waypoints_list.size() - 1) {
+                    json_msg << ",";
+                }
+                json_msg << "\n";
+            }
+
+            json_msg << "  ]\n";
+            json_msg << "}";
+
+            auto msg = std_msgs::msg::String();
+            msg.data = json_msg.str();
+            this->waypoint_update_pub->publish(msg);
+
+            RCLCPP_DEBUG(this->get_logger(), "Published waypoint update to /robot/waypoints/update");
+        } catch (const std::exception& e) {
+            RCLCPP_ERROR(this->get_logger(), "Error publishing waypoint update: %s", e.what());
+        }
+    }
+
+    std::string get_current_timestamp() {
+        auto now = std::chrono::system_clock::now();
+        auto time_t_now = std::chrono::system_clock::to_time_t(now);
+        auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()) % 1000;
+
+        std::stringstream ss;
+        ss << std::put_time(std::gmtime(&time_t_now), "%Y-%m-%dT%H:%M:%S");
+        ss << '.' << std::setfill('0') << std::setw(3) << ms.count() << 'Z';
+        return ss.str();
+    }
+
     bool is_valid_gps_position() {
         // Always allow waypoint fetching even if GPS coordinates are 0.0
         // This will record 0.0, 0.0 as waypoint when GPS is not available
@@ -206,6 +256,9 @@ private:
                 if (!this->waypoints_file_path.empty()) {
                     write_waypoint_to_file(new_waypoint);
                 }
+
+                // Publish waypoint update to ROS topic for Web GCS
+                publish_waypoint_update();
 
                 // Log different message if GPS coordinates are zero
                 if (this->current_position.latitude == 0.0 && this->current_position.longitude == 0.0) {
@@ -339,7 +392,7 @@ private:
         }
 
         if (data_parts.size() == 10) {
-            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "Received data: %s", line.c_str());
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Received data: %s", line.c_str());
 
             try {
                 int part_0 = data_parts[0]; // Yaw
@@ -394,6 +447,7 @@ private:
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr docking_pub;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr left_buoy_pub;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr right_buoy_pub;
+    rclcpp::Publisher<std_msgs::msg::String>::SharedPtr waypoint_update_pub;
 
     // Subscriber Declaration
     rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr global_pos_sub;
