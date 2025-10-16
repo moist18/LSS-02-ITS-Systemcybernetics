@@ -30,7 +30,7 @@ public:
         this->declare_parameter<int>("navigation.waypoints_A.count", 0);
         this->declare_parameter<int>("navigation.waypoints_B.count", 0);
 
-        for (int i = 0; i < 7; ++i) {
+        for (int i = 0; i < 8; ++i) {
             this->declare_parameter<double>("navigation.waypoints_A.waypoint_" + std::to_string(i) + ".latitude", 0.0);
             this->declare_parameter<double>("navigation.waypoints_A.waypoint_" + std::to_string(i) + ".longitude", 0.0);
             this->declare_parameter<double>("navigation.waypoints_A.waypoint_" + std::to_string(i) + ".altitude", 0.0);

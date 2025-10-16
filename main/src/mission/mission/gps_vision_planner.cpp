@@ -134,7 +134,6 @@ private:
             this->setmode_pub->publish(mode_msg);
         }
 
-        std::lock_guard<std::mutex> lock(this->mutex);
         this->gps_control = gps;
         this->vision_control = vision;
 
