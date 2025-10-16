@@ -46,6 +46,7 @@ class VisionNode(Node):
 
         # Vision Parameter Declaration
         self.declare_parameter('model_path', f'{ROOT}/models/yolo11s_x640_model')
+        self.declare_parameter('camera_device', 0)
         self.declare_parameter('vision.detection.confidence', 0.65)
         self.declare_parameter('vision.detection.iou_threshold', 0.5)
         self.declare_parameter('vision.detection.image_size', 416)
@@ -57,6 +58,7 @@ class VisionNode(Node):
         
         # Parameter Setup
         self.load_parameter()
+        camera_device = self.get_parameter('camera_device').get_parameter_value().integer_value
 
         # Subscriber Initialization  
         self.mode_sub = self.create_subscription(Bool, '/robot/mode', self.mode_callback, qos_profile_services_default)
@@ -120,7 +122,13 @@ class VisionNode(Node):
         self.fps = 0
 
         # Camera Configuration
-        self.cam = cv2.VideoCapture(0)  # use camera 0
+        self.cam = cv2.VideoCapture(camera_device)
+        self.get_logger().info(f"📷 Vision using camera device: /dev/video{camera_device}")
+
+        if not self.cam.isOpened():
+            self.get_logger().error(f"❌ Failed to open camera /dev/video{camera_device}")
+            raise RuntimeError(f"Camera /dev/video{camera_device} not available")
+
         self.cam.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         self.cam.set(cv2.CAP_PROP_FPS, 30)
         self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, self.WIDTH)

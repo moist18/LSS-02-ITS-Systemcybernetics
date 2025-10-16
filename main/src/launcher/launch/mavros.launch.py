@@ -22,8 +22,6 @@ def generate_launch_description():
                     cmd=['ros2', 'param', 'set', '/mavros/param', 'SYSID_MYGCS', '1'],
                     output='screen'
                 ),
-
-                # Waypoint parameters
                 ExecuteProcess(
                     cmd=['ros2', 'param', 'set', '/mavros/param', 'WP_RADIUS', '2'],
                     output='screen'
@@ -34,20 +32,6 @@ def generate_launch_description():
                 ),
                 ExecuteProcess(
                     cmd=['ros2', 'param', 'set', '/mavros/param', 'WP_ACCEL', '7'],
-                    output='screen'
-                ),
-
-                # RC Override parameters - CRITICAL for motor control
-                ExecuteProcess(
-                    cmd=['ros2', 'param', 'set', '/mavros/param', 'RC_OPTIONS', '0'],
-                    output='screen'
-                ),
-                ExecuteProcess(
-                    cmd=['ros2', 'param', 'set', '/mavros/param', 'SERVO3_FUNCTION', '70'],
-                    output='screen'
-                ),
-                ExecuteProcess(
-                    cmd=['ros2', 'param', 'set', '/mavros/param', 'RC_OVERRIDE_TIME', '3.0'],
                     output='screen'
                 )
             ]

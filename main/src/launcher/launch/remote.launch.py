@@ -9,6 +9,13 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
+    navigation_param = os.path.join(
+                        get_package_share_directory('launcher'),
+                        'config',
+                        'navigation',
+                        'gps_vision.yaml'
+                    )
+    
     perception_param = os.path.join(
                         get_package_share_directory('launcher'),
                         'config',
@@ -28,6 +35,18 @@ def generate_launch_description():
                     FindPackageShare('launcher'), 'launch', 'mavros.launch.py'
                 ])
             ])
+        ),
+        
+        
+        # NAVIGATION PACKAGE
+        
+        Node(
+            package='navigation',
+            executable='vision_nav',
+            name='vision_navigation',
+            output='screen',
+            emulate_tty=True,
+            parameters=[navigation_param]
         ),
         
         
@@ -64,19 +83,8 @@ def generate_launch_description():
         Node(
             package='sensor',
             executable='state',
-            name='state_node',
-            output='screen',
-            emulate_tty=True
-        ),
-
-        # NAVIGATION PACKAGE (for testing without mission planner)
-
-        Node(
-            package='navigation',
-            executable='vision_nav',
-            name='vision_navigation_node',
             output='screen',
             emulate_tty=True,
-            parameters=[perception_param]
+            parameters=[sensor_param]
         )
     ])

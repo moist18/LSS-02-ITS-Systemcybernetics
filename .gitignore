@@ -3,9 +3,13 @@
 */install/
 */log/
 
+# Recordings
+recordings/
+
 # Reference
 **/waypoint/
 laptop/
 reference/
 CLAUDE.md
 .claude/
+claudedocs/

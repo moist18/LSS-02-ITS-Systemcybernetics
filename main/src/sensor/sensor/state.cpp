@@ -1,9 +1,14 @@
+#include <chrono>
+#include <mavros_msgs/msg/state.hpp>
 #include <mavros_msgs/srv/command_bool.hpp>
 #include <mavros_msgs/srv/set_mode.hpp>
+#include <memory>
 #include <rclcpp/qos.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/string.hpp>
+
+using namespace std::chrono_literals;
 
 class StateNode : public rclcpp::Node {
 public:
@@ -23,7 +28,7 @@ public:
         this->arming_client = this->create_client<mavros_msgs::srv::CommandBool>("/mavros/cmd/arming");
         this->mode_client = this->create_client<mavros_msgs::srv::SetMode>("/mavros/set_mode");
 
-        RCLCPP_INFO(this->get_logger(), "State node started");
+        RCLCPP_INFO(this->get_logger(), "✅ State node initialized");
     }
 
 private:
@@ -132,8 +137,68 @@ private:
     rclcpp::Client<mavros_msgs::srv::SetMode>::SharedPtr mode_client;
 };
 
+bool wait_for_mavros(rclcpp::Node::SharedPtr node, int timeout_seconds) {
+    RCLCPP_INFO(node->get_logger(), "⏳ Waiting for MAVROS to be ready...");
+
+    // Step 1: Wait for /mavros/state topic to show connection
+    bool heartbeat_received = false;
+    auto state_sub = node->create_subscription<mavros_msgs::msg::State>("/mavros/state", rclcpp::SensorDataQoS(), [&heartbeat_received](const mavros_msgs::msg::State::SharedPtr msg) {
+        if (msg->connected) {
+            heartbeat_received = true;
+        }
+    });
+
+    auto start_time = std::chrono::steady_clock::now();
+    while (rclcpp::ok() && !heartbeat_received) {
+        rclcpp::spin_some(node);
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count();
+
+        if (elapsed > timeout_seconds) {
+            RCLCPP_ERROR(node->get_logger(), "❌ Timeout waiting for MAVROS heartbeat after %ds", timeout_seconds);
+            return false;
+        }
+
+        if (elapsed > 0 && elapsed % 5 == 0) {
+            RCLCPP_INFO(node->get_logger(), "   Still waiting for MAVROS connection... (%lds)", elapsed);
+        }
+
+        rclcpp::sleep_for(500ms);
+    }
+
+    if (!heartbeat_received) {
+        return false;
+    }
+
+    RCLCPP_INFO(node->get_logger(), "✅ MAVROS heartbeat detected");
+
+    // Step 2: Verify service availability with a test call
+    auto test_client = node->create_client<mavros_msgs::srv::CommandBool>("/mavros/cmd/arming");
+
+    if (!test_client->wait_for_service(std::chrono::seconds(5))) {
+        RCLCPP_ERROR(node->get_logger(), "❌ MAVROS arming service not available");
+        return false;
+    }
+
+    RCLCPP_INFO(node->get_logger(), "✅ MAVROS services ready");
+    return true;
+}
+
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
+
+    // Create temporary node with different name to avoid conflict
+    auto temp_node = std::make_shared<rclcpp::Node>("state_init");
+
+    // Declare parameter with default value (will be overridden by launch file if provided)
+    temp_node->declare_parameter<int>("mavros_init_timeout", 20);
+    int timeout = temp_node->get_parameter("mavros_init_timeout").as_int();
+
+    if (!wait_for_mavros(temp_node, timeout)) {
+        RCLCPP_FATAL(temp_node->get_logger(), "❌ MAVROS initialization failed - State node cannot start");
+        rclcpp::shutdown();
+        return 1;
+    }
+
     auto node = std::make_shared<StateNode>();
 
     rclcpp::executors::MultiThreadedExecutor executor;

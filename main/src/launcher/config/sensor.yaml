@@ -4,6 +4,10 @@
       port: "/dev/ttyACM0"
       baudrate: 9600
 
+/state_init:
+  ros__parameters:
+    mavros_init_timeout: 45
+
 /rplidar_node:
   ros__parameters:
     channel_type: 'serial'

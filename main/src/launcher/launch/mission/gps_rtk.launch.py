@@ -147,8 +147,8 @@ def generate_launch_description():
         Node(
             package='sensor',
             executable='state',
-            name='state_node',
             output='screen',
-            emulate_tty=True
+            emulate_tty=True,
+            parameters=[sensor_param]
         )
     ])

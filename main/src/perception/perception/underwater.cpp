@@ -13,6 +13,12 @@ public:
     UnderwaterNode()
         : Node("underwater_node") {
 
+        // Parameter Declaration
+        this->declare_parameter<int>("camera_device", 1);
+
+        // Parameter Setup
+        this->camera_device = this->get_parameter("camera_device").as_int();
+
         // Subscriber Initialization
         this->mode_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::mode_callback, this, std::placeholders::_1));
         this->gps_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/gps", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::gps_control_callback, this, std::placeholders::_1));
@@ -29,7 +35,7 @@ public:
         // Rate Timer Initialization
         this->loop_timer = this->create_wall_timer(50ms, std::bind(&UnderwaterNode::runner, this));
 
-        RCLCPP_INFO(this->get_logger(), "Underwater cam node started");
+        RCLCPP_INFO(this->get_logger(), "Underwater cam node started with camera device: /dev/video%d", this->camera_device);
     }
 
 private:
@@ -82,13 +88,14 @@ private:
         static bool camera_initialized = false;
 
         if (!camera_initialized) {
-            this->cam.open(1); // use camera 1
+            this->cam.open(this->camera_device);
             if (!this->cam.isOpened()) {
-                RCLCPP_ERROR(this->get_logger(), "Failed to open underwater camera");
+                RCLCPP_ERROR(this->get_logger(), "Failed to open underwater camera /dev/video%d", this->camera_device);
                 return;
             }
             this->cam.set(cv::CAP_PROP_FRAME_WIDTH, this->WIDTH);
             this->cam.set(cv::CAP_PROP_FRAME_HEIGHT, this->HEIGHT);
+            RCLCPP_INFO(this->get_logger(), "📷 Underwater camera opened successfully: /dev/video%d", this->camera_device);
             camera_initialized = true;
         }
 
@@ -126,6 +133,7 @@ private:
     int HEIGHT = 480;
 
     // Variable Initialization
+    int camera_device;
     cv::VideoCapture cam;
     bool auto_mode = true;
     bool gps_control = false;
