@@ -114,7 +114,7 @@ class VisionNode(Node):
         self.is_surface = False
         
         # Mission Variables
-        self.mission = 'Floating Ball'
+        self.mission = ''
         self.docking = 'green_dock'
         self.left_buoy = 'green_buoy'
         self.right_buoy = 'red_buoy'
