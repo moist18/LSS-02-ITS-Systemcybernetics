@@ -37,8 +37,7 @@ public:
 
 private:
     void load_parameter() {
-        std::lock_guard<std::mutex> lock(this->mutex);
-
+        // No mutex here to avoid lock inversion with ROS 2 parameter system
         // Load parameters using ROS2 parameter system
         this->min_valid_range = this->get_parameter("lidar.min_range").as_double();
         this->max_valid_range = this->get_parameter("lidar.max_range").as_double();
@@ -49,7 +48,7 @@ private:
 
     void param_callback() {
         this->load_parameter();
-        RCLCPP_INFO(this->get_logger(), "LiDAR parameters reloaded");
+        RCLCPP_INFO(this->get_logger(), "LIDAR → Parameters Reloaded!");
     }
 
     bool angle_in_range(int angle_deg) {
@@ -93,7 +92,7 @@ private:
         this->lidar_pub->publish(detection_msg);
 
         if (detection_msg.data) {
-            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "STOP: Object detected in angle %d within %.2f-%.2fm", last_angle, this->min_valid_range, this->max_valid_range);
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "LIDAR → Object detected | Angle:%d Range:%.2f-%.2fm", last_angle, this->min_valid_range, this->max_valid_range);
         }
     }
 

@@ -52,9 +52,6 @@ public:
 
 private:
     void load_parameter() {
-        std::lock_guard<std::mutex> lock(this->mutex);
-
-        // Load phase duration parameters
         this->phase_duration.clear();
         this->phase_duration["0"] = this->get_parameter("phase_duration.0").as_double();
         this->phase_duration["2"] = this->get_parameter("phase_duration.2").as_double();
@@ -64,7 +61,7 @@ private:
 
     void param_callback() {
         this->load_parameter();
-        RCLCPP_INFO(this->get_logger(), "Parameters reloaded");
+        RCLCPP_INFO(this->get_logger(), "PLANNER: Parameters Reloaded!");
     }
 
     void state_callback(const mavros_msgs::msg::State::SharedPtr msg) {
@@ -144,6 +141,8 @@ private:
         auto vision_msg = std_msgs::msg::Bool();
         vision_msg.data = vision;
         this->vision_control_pub->publish(vision_msg);
+
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "PLANNER: Mode:%s | Publishing GPS:%d Vision:%d", mode.c_str(), gps, vision);
     }
 
     void gps_navigation() {
@@ -177,7 +176,7 @@ private:
                 this->vision_navigation();
             }
         } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Error getting phase duration for waypoint 0: %s", e.what());
+            RCLCPP_ERROR(this->get_logger(), "PLANNER: Error getting phase duration for waypoint 0: %s", e.what());
         }
     }
 
@@ -200,7 +199,7 @@ private:
                 this->vision_navigation();
             }
         } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Error getting phase duration for waypoint 0: %s", e.what());
+            RCLCPP_ERROR(this->get_logger(), "PLANNER: Error getting phase duration for waypoint 2: %s", e.what());
         }
     }
 
@@ -246,7 +245,7 @@ private:
                 this->vision_navigation();
             }
         } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "Error getting phase duration for waypoint 4: %s", e.what());
+            RCLCPP_ERROR(this->get_logger(), "PLANNER: Error getting phase duration for waypoint 4: %s", e.what());
         }
     }
 
@@ -273,7 +272,7 @@ private:
                     this->vision_navigation();
                 }
             } catch (const std::exception& e) {
-                RCLCPP_ERROR(this->get_logger(), "Error getting phase duration for waypoint 0: %s", e.what());
+                RCLCPP_ERROR(this->get_logger(), "PLANNER: Error getting phase duration for waypoint 6: %s", e.what());
             }
         }
     }
@@ -285,7 +284,7 @@ private:
 
     void handle_waypoint_8(double current_time) {
         this->vision_navigation();
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "PLANNER_FINISH: Road to Finish!");
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "PLANNER: Road to Finish!");
     }
 
     void mission_planner() {
@@ -329,7 +328,7 @@ private:
             this->handle_waypoint_8(current_time);
             break;
         default:
-            RCLCPP_WARN(this->get_logger(), "Invalid waypoint: %d", this->current_waypoint);
+            RCLCPP_WARN(this->get_logger(), "PLANNER: Invalid waypoint: %d", this->current_waypoint);
         }
     }
 
@@ -361,19 +360,23 @@ private:
 
         this->mission_planner();
 
-        auto mission_msg = std_msgs::msg::String();
-        mission_msg.data = this->mission;
-        this->mission_pub->publish(mission_msg);
+        {
+            std::lock_guard<std::mutex> lock(this->mutex);
 
-        auto left_msg = std_msgs::msg::String();
-        left_msg.data = this->left_buoy;
-        this->left_buoy_pub->publish(left_msg);
+            auto mission_msg = std_msgs::msg::String();
+            mission_msg.data = this->mission;
+            this->mission_pub->publish(mission_msg);
 
-        auto right_msg = std_msgs::msg::String();
-        right_msg.data = this->right_buoy;
-        this->right_buoy_pub->publish(right_msg);
+            auto left_msg = std_msgs::msg::String();
+            left_msg.data = this->left_buoy;
+            this->left_buoy_pub->publish(left_msg);
 
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Current mission: %s", this->mission.c_str());
+            auto right_msg = std_msgs::msg::String();
+            right_msg.data = this->right_buoy;
+            this->right_buoy_pub->publish(right_msg);
+
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER: Current mission: %s", this->mission.c_str());
+        }
     }
 
     // Subscriber Declaration

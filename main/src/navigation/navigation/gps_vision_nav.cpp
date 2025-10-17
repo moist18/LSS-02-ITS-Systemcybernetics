@@ -81,16 +81,13 @@ private:
                 waypoints.push_back(wp);
             }
         } catch (const rclcpp::ParameterTypeException& e) {
-            RCLCPP_ERROR(this->get_logger(), "Failed to load waypoints for trajectory %s: %s", trajectory.c_str(), e.what());
+            RCLCPP_ERROR(this->get_logger(), "GPS-NAV → Failed to load waypoints for trajectory %s: %s", trajectory.c_str(), e.what());
         }
 
         return waypoints;
     }
 
     void load_parameter() {
-        std::lock_guard<std::mutex> lock(this->mutex);
-
-        // Load parameters using ROS2 parameter system
         this->radius = this->get_parameter("navigation.radius").as_double();
         this->waypoints_A = load_waypoints("A");
         this->waypoints_B = load_waypoints("B");
@@ -100,7 +97,7 @@ private:
 
     void param_callback() {
         load_parameter();
-        RCLCPP_INFO(this->get_logger(), "Parameters reloaded");
+        RCLCPP_INFO(this->get_logger(), "GPS-NAV → Parameters Reloaded!");
     }
 
     void global_pos_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
@@ -133,7 +130,7 @@ private:
             std::lock_guard<std::mutex> lock(this->mutex);
             this->current_waypoint = 0;
             this->is_finish = false;
-            RCLCPP_INFO(this->get_logger(), "G-NAV: Successfully Reset Mission!");
+            RCLCPP_INFO(this->get_logger(), "GPS-NAV → Successfully Reset Mission!");
         }
     }
 
@@ -149,6 +146,21 @@ private:
         return R * c;
     }
 
+    double calculate_bearing(double lat1, double lon1, double lat2, double lon2) {
+        // Convert to radians
+        const double phi1 = lat1 * M_PI / 180.0;
+        const double phi2 = lat2 * M_PI / 180.0;
+        const double delta_lambda = (lon2 - lon1) * M_PI / 180.0;
+
+        // Calculate bearing using proper spherical geometry
+        const double y = sin(delta_lambda) * cos(phi2);
+        const double x = cos(phi1) * sin(phi2) - sin(phi1) * cos(phi2) * cos(delta_lambda);
+        const double bearing = atan2(y, x);
+
+        // Returns bearing in radians
+        return bearing;
+    }
+
     void gps_navigation(double lat, double lon, double alt) {
         auto geopose = geographic_msgs::msg::GeoPoseStamped();
         geopose.header.stamp = now();
@@ -157,16 +169,18 @@ private:
         geopose.pose.position.longitude = lon;
         geopose.pose.position.altitude = alt;
 
-        std::lock_guard<std::mutex> lock(this->mutex);
         const double current_lat = this->current_position.latitude;
         const double current_lon = this->current_position.longitude;
-        const double desired_yaw = atan2(lat - current_lat, lon - current_lon);
+        const double desired_yaw = calculate_bearing(current_lat, current_lon, lat, lon);
+        const double desired_yaw_deg = desired_yaw * 180.0 / M_PI;
 
         tf2::Quaternion q;
         q.setRPY(0, 0, desired_yaw);
         geopose.pose.orientation = tf2::toMsg(q);
 
         this->geopose_pub->publish(geopose);
+
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "GPS-NAV → Yaw:%.1f°", desired_yaw_deg);
     }
 
     void runner() {
@@ -179,9 +193,7 @@ private:
             const double distance = calculate_distance(this->current_position.latitude, this->current_position.longitude, current_wp.latitude, current_wp.longitude);
 
             if (this->auto_mode) {
-                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "Current WP_%d: (%f, %f)", this->current_waypoint, current_wp.latitude, current_wp.longitude);
-
-                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000, "WP Distance: %.2f m, WP Radius: %.1f m", distance, this->radius);
+                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "WP_%d: Dist %.2fm | GPS:%d Vision:%d", this->current_waypoint, distance, this->gps_control, this->vision_control);
 
                 if (this->gps_control && !this->vision_control) {
                     gps_navigation(current_wp.latitude, current_wp.longitude, current_wp.altitude);
@@ -194,19 +206,19 @@ private:
                         wp_msg.data = this->current_waypoint;
                         this->curr_wp_pub->publish(wp_msg);
 
-                        RCLCPP_INFO(get_logger(), "Reached Waypoint %d", this->current_waypoint);
-                        RCLCPP_INFO(get_logger(), "Moving to Waypoint %d", this->current_waypoint + 1);
+                        RCLCPP_INFO(get_logger(), "GPS-NAV → Reached Waypoint %d", this->current_waypoint);
+                        RCLCPP_INFO(get_logger(), "GPS-NAV → Moving to Waypoint %d", this->current_waypoint + 1);
                     } else {
                         this->is_finish = true;
                         auto wp_msg = std_msgs::msg::Int32();
                         wp_msg.data = this->current_waypoint + 1;
                         this->curr_wp_pub->publish(wp_msg);
-                        RCLCPP_INFO(this->get_logger(), "Reached last waypoint: Moving to Dock");
+                        RCLCPP_INFO(this->get_logger(), "GPS-NAV → Reached last waypoint: Moving to Dock");
                     }
                 }
             }
         } else if (this->is_finish) {
-            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "NAV_FINISH: Road to Finish!");
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "GPS-NAV →  Road to Finish!");
         }
     }
 

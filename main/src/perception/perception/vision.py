@@ -123,10 +123,10 @@ class VisionNode(Node):
 
         # Camera Configuration
         self.cam = cv2.VideoCapture(camera_device)
-        self.get_logger().info(f"📷 Vision using camera device: /dev/video{camera_device}")
+        self.get_logger().info(f"Vision using camera /dev/video{camera_device}")
 
         if not self.cam.isOpened():
-            self.get_logger().error(f"❌ Failed to open camera /dev/video{camera_device}")
+            self.get_logger().error(f"Failed to open camera /dev/video{camera_device}")
             raise RuntimeError(f"Camera /dev/video{camera_device} not available")
 
         self.cam.set(cv2.CAP_PROP_BUFFERSIZE, 1)
@@ -241,7 +241,7 @@ class VisionNode(Node):
         if msg.data:
             self.mission = ""
             self.is_surface = False
-            self.get_logger().info("VIZ: Successfully Reset Mission!")
+            self.get_logger().info("S-VIZ → Successfully Reset Mission!")
 
     def _handle_surface_imaging(self, img_msg):
         if self.auto_mode:
@@ -250,7 +250,7 @@ class VisionNode(Node):
                     if self.lidar and not self.is_surface:
                         self.is_surface = True
                         self.surface_image_pub.publish(img_msg)
-                        self.get_logger().info("S-VIZ: Surface Imaging!")
+                        self.get_logger().info("S-VIZ → Surface Imaging!")
 
     def processor(self, input_frame):
         # Add frame to processing buffer for worker threads
@@ -264,26 +264,20 @@ class VisionNode(Node):
         raw_yaw = 1500  # Default mid value
         objects_detected = False
 
-        # Debug state
-        debug_reason = "No result in buffer"
-
         # Try to get processed result from buffer
         if self.result_buffer:
             try:
-                frame, result, _ = self.result_buffer.popleft()  # timestamp not used here
+                frame, result, _ = self.result_buffer.popleft()
 
                 # Check if objects were detected
                 if result and hasattr(result, 'boxes') and len(result.boxes) > 0:
                     objects_detected = True
-                    debug_reason = f"Detected {len(result.boxes)} objects"
-                else:
-                    debug_reason = "No objects in result"
 
                 # Apply visualization and get raw yaw data
                 if result:
                     # frame = result.plot()  # Competition (optional)
                     if self.vis and hasattr(result, 'boxes'):
-                        frame, raw_yaw, _ = self.vis.processor(  # Competition / Development - is_finish not used
+                        frame, raw_yaw, _ = self.vis.processor(
                             frame,
                             self.fps,
                             self.mission,
@@ -299,7 +293,6 @@ class VisionNode(Node):
                             self.mid_rc_value,
                             self.max_rc_value[0 if self.mission == "Floating Ball" else 1]
                         )
-                        debug_reason = f"Vision processed: {len(result.boxes)} objs, yaw={raw_yaw}"
 
                 # Debug: Show processed image
                 # cv2.imshow('Vision Debug', frame)
@@ -308,7 +301,7 @@ class VisionNode(Node):
                 # Publish processed image
                 img_msg = self.bridge.cv2_to_imgmsg(frame, 'bgr8')
                 self.navigation_vision_pub.publish(img_msg)
-                
+
                 # Surface imaging logic
                 self._handle_surface_imaging(img_msg)
 
@@ -336,20 +329,14 @@ class VisionNode(Node):
         # Publish detection results for navigation node
         self.obj_detection_pub.publish(Bool(data=objects_detected))
         self.raw_yaw_pub.publish(Int32(data=int(raw_yaw)))
-
-        # Debug logging
-        self.get_logger().info(
-            f"VIZ: Mission='{self.mission}' | Objects={objects_detected} | Raw Yaw={int(raw_yaw)} | {debug_reason}",
-            throttle_duration_sec=1
-        )
+        
+        if objects_detected:
+            self.get_logger().info(f"S-VIZ → OBJ | Yaw:{int(raw_yaw)}", throttle_duration_sec=2)
 
     def calculate_fps(self):
         current_time = self.get_clock().now().nanoseconds / 1e9
         self.fps = 1 / (current_time - self.prev_time)
         self.prev_time = current_time
-        
-        # Log FPS with ROS2 throttle (every 5 seconds)
-        self.get_logger().info(f"FPS: {int(self.fps)}", throttle_duration_sec=5)
 
     def runner(self):
         success, frame = self.cam.read()

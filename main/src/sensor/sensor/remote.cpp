@@ -62,14 +62,11 @@ public:
 
         // Rate Timer Initialization
         this->loop_timer = this->create_wall_timer(20ms, std::bind(&RemoteNode::read_and_publish, this));
-        RCLCPP_INFO(this->get_logger(), "Arduino node started");
+        RCLCPP_INFO(this->get_logger(), "Remote node started");
     }
 
 private:
     void load_parameter() {
-        std::lock_guard<std::mutex> lock(this->mutex);
-
-        // Load parameters using ROS2 parameter system
         this->port = this->get_parameter("arduino.port").as_string();
         this->baudrate = this->get_parameter("arduino.baudrate").as_int();
 
@@ -78,6 +75,7 @@ private:
 
     void param_callback() {
         load_parameter();
+        RCLCPP_INFO(this->get_logger(), "REMOTE → Parameters Reloaded!");
     }
 
     void global_pos_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
@@ -94,14 +92,14 @@ private:
             this->ser.open();
 
             if (this->ser.isOpen()) {
-                RCLCPP_INFO(this->get_logger(), "Connected to Arduino on port %s at %d baudrate.", this->port.c_str(), this->baudrate);
+                RCLCPP_INFO(this->get_logger(), "REMOTE → Arduino connected: %s @ %d", this->port.c_str(), this->baudrate);
                 return true;
             } else {
-                RCLCPP_ERROR(this->get_logger(), "Could not open serial port");
+                RCLCPP_ERROR(this->get_logger(), "REMOTE → Serial port open failed");
                 return false;
             }
         } catch (const serial::IOException& e) {
-            RCLCPP_ERROR(this->get_logger(), "Could not open serial port: %s", e.what());
+            RCLCPP_ERROR(this->get_logger(), "REMOTE → Serial error: %s", e.what());
             return false;
         }
     }
@@ -132,8 +130,10 @@ private:
         try {
             std::ofstream file(filepath);
             if (file.is_open()) {
-                file << "navigation:\n";
-                file << "  waypoints_Z:\n";
+                file << "/gps_navigation:\n";
+                file << "  ros__parameters: \n";
+                file << "    navigation:\n";
+                file << "      waypoints_X:\n";
                 file.close();
                 RCLCPP_INFO(this->get_logger(), "Initialized waypoints file: %s", filepath.c_str());
             } else {
@@ -152,10 +152,10 @@ private:
         try {
             std::ofstream file(this->waypoints_file_path, std::ios::app);
             if (file.is_open()) {
-                file << "    waypoint_" << this->waypoint_counter << ":\n";
-                file << "      latitude: " << std::fixed << std::setprecision(8) << waypoint.at("latitude") << "\n";
-                file << "      longitude: " << std::fixed << std::setprecision(8) << waypoint.at("longitude") << "\n";
-                file << "      altitude: " << std::fixed << std::setprecision(2) << waypoint.at("altitude") << "\n";
+                file << "        waypoint_" << this->waypoint_counter << ":\n";
+                file << "          latitude: " << std::fixed << std::setprecision(8) << waypoint.at("latitude") << "\n";
+                file << "          longitude: " << std::fixed << std::setprecision(8) << waypoint.at("longitude") << "\n";
+                file << "          altitude: " << std::fixed << std::setprecision(2) << waypoint.at("altitude") << "\n";
                 file.close();
             } else {
                 RCLCPP_ERROR(this->get_logger(), "Failed to open waypoints file for writing: %s", this->waypoints_file_path.c_str());
@@ -213,10 +213,6 @@ private:
     }
 
     bool is_valid_gps_position() {
-        // Always allow waypoint fetching even if GPS coordinates are 0.0
-        // This will record 0.0, 0.0 as waypoint when GPS is not available
-
-        // Check if coordinates are within valid GPS bounds (if not zero)
         double lat = this->current_position.latitude;
         double lon = this->current_position.longitude;
 
@@ -291,7 +287,7 @@ private:
             this->docking_pub->publish(msg_str);
 
             this->prev_values["trajectory"] = "A";
-            RCLCPP_INFO(this->get_logger(), "Attempting to set 'A' Trajectory...");
+            RCLCPP_INFO(this->get_logger(), "REMOTE → Attempting to set 'A' Trajectory...");
 
         } else if (part > 1500 && this->prev_values["trajectory"] != "B") {
             msg_str.data = "B";
@@ -305,7 +301,7 @@ private:
             this->docking_pub->publish(msg_str);
 
             this->prev_values["trajectory"] = "B";
-            RCLCPP_INFO(this->get_logger(), "Attempting to set 'B' Trajectory...");
+            RCLCPP_INFO(this->get_logger(), "REMOTE → Attempting to set 'B' Trajectory...");
         }
     }
 
@@ -325,7 +321,7 @@ private:
 
             this->remote_controlled = true;
             this->prev_values["mode"] = "Manual";
-            RCLCPP_INFO(this->get_logger(), "Attempting to set RC MANUAL mode...");
+            RCLCPP_INFO(this->get_logger(), "REMOTE → Attempting to set RC MANUAL mode...");
 
         } else if (1400 < part && part < 1600 && this->prev_values["mode"] != "Neutral") {
             msg_str.data = "MANUAL";
@@ -339,10 +335,10 @@ private:
 
             this->remote_controlled = true;
             this->prev_values["mode"] = "Neutral";
-            RCLCPP_INFO(this->get_logger(), "Attempting to set RC NEUTRAL mode...");
+            RCLCPP_INFO(this->get_logger(), "REMOTE → Attempting to set RC NEUTRAL mode...");
 
         } else if (part >= 1600 && this->prev_values["mode"] != "Auto") {
-            msg_str.data = "GUIDED";
+            msg_str.data = "MANUAL";
             this->setmode_pub->publish(msg_str);
 
             msg_bool.data = false;
@@ -353,7 +349,7 @@ private:
 
             this->remote_controlled = false;
             this->prev_values["mode"] = "Auto";
-            RCLCPP_INFO(this->get_logger(), "Attempting to set RC AUTO mode...");
+            RCLCPP_INFO(this->get_logger(), "REMOTE → Attempting to set RC AUTO mode...");
         }
     }
 
@@ -364,13 +360,13 @@ private:
             msg_bool.data = false;
             this->arming_pub->publish(msg_bool);
             this->prev_values["arming"] = "Disarm";
-            RCLCPP_INFO(this->get_logger(), "Requesting DISARMING command...");
+            RCLCPP_INFO(this->get_logger(), "REMOTE → Requesting DISARMING command...");
 
         } else if (part > 1500 && this->prev_values["arming"] != "Arm") {
             msg_bool.data = true;
             this->arming_pub->publish(msg_bool);
             this->prev_values["arming"] = "Arm";
-            RCLCPP_INFO(this->get_logger(), "Requesting ARMING command...");
+            RCLCPP_INFO(this->get_logger(), "REMOTE → Requesting ARMING command...");
         }
     }
 
@@ -392,7 +388,7 @@ private:
         }
 
         if (data_parts.size() == 10) {
-            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "Received data: %s", line.c_str());
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "REMOTE → Received data: %s", line.c_str());
 
             try {
                 int part_0 = data_parts[0]; // Yaw
@@ -417,7 +413,7 @@ private:
                     }
                 }
             } catch (const std::exception& e) {
-                RCLCPP_ERROR(this->get_logger(), "Error processing Arduino data: %s", e.what());
+                RCLCPP_ERROR(this->get_logger(), "REMOTE → Error processing Arduino data: %s", e.what());
             }
         }
     }
@@ -433,7 +429,7 @@ private:
                 }
             }
         } catch (const serial::IOException& e) {
-            RCLCPP_ERROR(this->get_logger(), "Error reading from serial port: %s", e.what());
+            RCLCPP_ERROR(this->get_logger(), "REMOTE → Error reading from serial port: %s", e.what());
         }
     }
 

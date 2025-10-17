@@ -35,40 +35,48 @@ public:
         // Rate Timer Initialization
         this->loop_timer = this->create_wall_timer(50ms, std::bind(&UnderwaterNode::runner, this));
 
-        RCLCPP_INFO(this->get_logger(), "Underwater cam node started with camera device: /dev/video%d", this->camera_device);
+        RCLCPP_INFO(this->get_logger(), "Underwater node started");
     }
 
 private:
     void mode_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->auto_mode = msg->data;
     }
 
     void gps_control_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->gps_control = msg->data;
     }
 
     void vision_control_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->vision_control = msg->data;
     }
 
     void lidar_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->lidar = msg->data;
     }
 
     void mission_callback(const std_msgs::msg::String::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->mission = msg->data;
     }
 
     void reset_mission_callback(const std_msgs::msg::Bool::SharedPtr msg) {
         if (msg->data) {
+            std::lock_guard<std::mutex> lock(this->mutex);
             this->mission = "";
             this->is_underwater = false;
-            RCLCPP_INFO(this->get_logger(), "U-VIZ: Successfully Reset Mission!");
+            RCLCPP_INFO(this->get_logger(), "U-VIZ → Successfully Reset Mission!");
         }
     }
 
     // Processor method
     void processor(cv::Mat& frame) {
+        std::lock_guard<std::mutex> lock(this->mutex);
+
         if (this->auto_mode) {
             if (!this->gps_control && this->vision_control) {
                 if (this->mission == "Underwater Imaging") {
@@ -90,12 +98,12 @@ private:
         if (!camera_initialized) {
             this->cam.open(this->camera_device);
             if (!this->cam.isOpened()) {
-                RCLCPP_ERROR(this->get_logger(), "Failed to open underwater camera /dev/video%d", this->camera_device);
+                RCLCPP_ERROR(this->get_logger(), "U-VIZ → Failed to open camera /dev/video%d", this->camera_device);
                 return;
             }
             this->cam.set(cv::CAP_PROP_FRAME_WIDTH, this->WIDTH);
             this->cam.set(cv::CAP_PROP_FRAME_HEIGHT, this->HEIGHT);
-            RCLCPP_INFO(this->get_logger(), "📷 Underwater camera opened successfully: /dev/video%d", this->camera_device);
+            RCLCPP_INFO(this->get_logger(), "U-VIZ → Camera opened successfully: /dev/video%d", this->camera_device);
             camera_initialized = true;
         }
 
@@ -107,9 +115,12 @@ private:
         }
 
         // Publish underwater mission status
-        auto underwater_msg = std_msgs::msg::Bool();
-        underwater_msg.data = this->is_underwater;
-        this->underwater_mission_pub->publish(underwater_msg);
+        {
+            std::lock_guard<std::mutex> lock(this->mutex);
+            auto underwater_msg = std_msgs::msg::Bool();
+            underwater_msg.data = this->is_underwater;
+            this->underwater_mission_pub->publish(underwater_msg);
+        }
     }
 
     // Subscriber Declaration
@@ -127,6 +138,9 @@ private:
 
     // Rate Timer Declaration
     rclcpp::TimerBase::SharedPtr loop_timer;
+
+    // Mutex Declaration
+    std::mutex mutex;
 
     // Constant Initialization
     int WIDTH = 640;

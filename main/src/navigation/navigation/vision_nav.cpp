@@ -100,6 +100,7 @@ public:
 
 private:
     void load_parameter() {
+        // No mutex here to avoid lock inversion with ROS 2 parameter system
         // RC Parameter Initialization
         this->rc_channels_default.fill(65535);
 
@@ -129,51 +130,62 @@ private:
 
     void param_callback() {
         this->load_parameter();
+        RCLCPP_INFO(this->get_logger(), "VISION-NAV → Parameters Reloaded!");
     }
 
     void mode_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->auto_mode = msg->data;
     }
 
     void gps_control_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->gps_control = msg->data;
     }
 
     void vision_control_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->vision_control = msg->data;
     }
 
     void lidar_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->lidar = msg->data;
     }
 
     void mission_callback(const std_msgs::msg::String::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->mission = msg->data;
     }
 
     void surface_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->is_surface = msg->data;
     }
 
     void underwater_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->is_underwater = msg->data;
     }
 
     void raw_yaw_callback(const std_msgs::msg::Int32::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->raw_yaw = msg->data;
     }
 
     void obj_detection_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
         this->objects_detected = msg->data;
     }
 
     void reset_mission_callback(const std_msgs::msg::Bool::SharedPtr msg) {
         if (msg->data) {
+            std::lock_guard<std::mutex> lock(this->mutex);
             this->mission = "";
             this->is_surface = false;
             this->is_finish = false;
             this->dock_timer_started = false;
-            RCLCPP_INFO(this->get_logger(), "V-NAV: Successfully Reset Mission!");
+            RCLCPP_INFO(this->get_logger(), "VISION-NAV → Successfully Reset Mission!");
         }
     }
 
@@ -191,10 +203,12 @@ private:
         rc_override.channels[2] = static_cast<uint16_t>(throttle);
         rc_override.channels[3] = static_cast<uint16_t>(lateral);
         this->rc_override_pub->publish(rc_override);
-        RCLCPP_INFO(this->get_logger(), "YAW: %d", yaw);
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "VISION-NAV → RC Y:%d T:%d", yaw, throttle);
     }
 
     void runner() {
+        std::lock_guard<std::mutex> lock(this->mutex);
+
         int rc_yaw = this->mid_rc_value;
         int rc_throttle = 1500;
 
@@ -203,24 +217,16 @@ private:
             double yaw_error = static_cast<double>(this->raw_yaw - this->mid_rc_value) / (this->max_rc_value[mission_index] - this->mid_rc_value);
             rc_yaw = this->calculate_rc_value(this->pid_yaw->compute(yaw_error));
             rc_throttle = this->rc_throttle[mission_index];
-            RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 1000,
-                "✅ OBJ DETECTED | Mission: '%s' | Raw Yaw: %d | Yaw Error: %.3f | RC YAW: %d | RC Throttle: %d",
-                this->mission.c_str(), this->raw_yaw, yaw_error, rc_yaw, rc_throttle);
+            RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "VISION-NAV → OBJ DETECTED | Yaw:%d T:%d", rc_yaw, rc_throttle);
         } else {
             rc_yaw = this->mid_rc_value;
             int mission_index = (this->mission == "Floating Ball") ? 0 : 1;
             rc_throttle = this->rc_throttle[mission_index];
             this->pid_yaw->reset();
-            RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000,
-                "❌ NO OBJECTS | Mission: '%s' | Using defaults: YAW=%d, THROTTLE=%d",
-                this->mission.c_str(), rc_yaw, rc_throttle);
         }
 
         if (this->auto_mode) {
             if (!this->gps_control && this->vision_control) {
-                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 3000,
-                    "🎯 VISION ACTIVE | Auto: %d | GPS: %d | Vision: %d | Mission: '%s'",
-                    this->auto_mode, this->gps_control, this->vision_control, this->mission.c_str());
 
                 if (this->mission == "Surface Imaging") {
                     if (this->lidar && !this->is_surface) {
@@ -260,10 +266,9 @@ private:
 
                     if (elapsed_time >= this->dock_duration) {
                         this->override_control(1500, 1500, 1500, 1500);
-                        RCLCPP_INFO(this->get_logger(), "VISION_FINISH: FINISH WOYYY!!!");
+                        RCLCPP_INFO(this->get_logger(), "VISION-NAV → Mission Complete!");
                     } else {
                         this->override_control(rc_yaw, 1500, rc_throttle, 1500);
-                        RCLCPP_INFO(this->get_logger(), "VISION_FINISH: Road to Finish!");
                     }
                 }
             }
@@ -288,6 +293,9 @@ private:
     // Rate Timer Declaration
     rclcpp::TimerBase::SharedPtr loop_timer;
     rclcpp::TimerBase::SharedPtr param_timer;
+
+    // Mutex Declaration
+    std::mutex mutex;
 
     // Variable Declaration
     std::array<uint16_t, 18> rc_channels_default;

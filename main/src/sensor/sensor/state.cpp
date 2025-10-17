@@ -28,12 +28,11 @@ public:
         this->arming_client = this->create_client<mavros_msgs::srv::CommandBool>("/mavros/cmd/arming");
         this->mode_client = this->create_client<mavros_msgs::srv::SetMode>("/mavros/set_mode");
 
-        RCLCPP_INFO(this->get_logger(), "✅ State node initialized");
+        RCLCPP_INFO(this->get_logger(), "State node started");
     }
 
 private:
     void arming_callback(const std_msgs::msg::Bool::SharedPtr msg) {
-        RCLCPP_INFO(this->get_logger(), "🔔 CALLBACK TRIGGERED! Received arming: %s", msg->data ? "ARM" : "DISARM");
         if (msg->data) {
             this->arm();
         } else {
@@ -46,9 +45,9 @@ private:
     }
 
     void arm() {
-        RCLCPP_INFO(this->get_logger(), "Attempting to send ARMING command...");
+        RCLCPP_INFO(this->get_logger(), "STATE → Attempting to send ARMING command...");
         if (!this->arming_client->wait_for_service(std::chrono::seconds(10))) {
-            RCLCPP_ERROR(this->get_logger(), "Arming service not available");
+            RCLCPP_ERROR(this->get_logger(), "STATE → Arming service not available");
             return;
         }
 
@@ -59,12 +58,12 @@ private:
             try {
                 auto response = future.get();
                 if (response->success) {
-                    RCLCPP_INFO(this->get_logger(), "✅ Successfully sent ARMING command");
+                    RCLCPP_INFO(this->get_logger(), "STATE → Armed");
                 } else {
-                    RCLCPP_ERROR(this->get_logger(), "❌ Failed to send ARMING command");
+                    RCLCPP_ERROR(this->get_logger(), "STATE → Arming failed");
                 }
             } catch (const std::exception& e) {
-                RCLCPP_ERROR(this->get_logger(), "Service call failed: %s", e.what());
+                RCLCPP_ERROR(this->get_logger(), "STATE → Arming error: %s", e.what());
             }
         };
 
@@ -72,9 +71,9 @@ private:
     }
 
     void disarm() {
-        RCLCPP_INFO(this->get_logger(), "Attempting to send DISARMING command...");
+        RCLCPP_INFO(this->get_logger(), "STATE → Attempting to send DISARMING command...");
         if (!this->arming_client->wait_for_service(std::chrono::seconds(10))) {
-            RCLCPP_ERROR(this->get_logger(), "Arming service not available");
+            RCLCPP_ERROR(this->get_logger(), "STATE → Disarming service not available");
             return;
         }
 
@@ -85,12 +84,12 @@ private:
             try {
                 auto response = future.get();
                 if (response->success) {
-                    RCLCPP_INFO(this->get_logger(), "✅ Successfully sent DISARMING command");
+                    RCLCPP_INFO(this->get_logger(), "STATE → Disarmed");
                 } else {
-                    RCLCPP_ERROR(this->get_logger(), "❌ Failed to send DISARMING command");
+                    RCLCPP_ERROR(this->get_logger(), "STATE → Disarming failed");
                 }
             } catch (const std::exception& e) {
-                RCLCPP_ERROR(this->get_logger(), "Service call failed: %s", e.what());
+                RCLCPP_ERROR(this->get_logger(), "STATE → Disarming error: %s", e.what());
             }
         };
 
@@ -98,9 +97,9 @@ private:
     }
 
     void set_mode(const std::string& mode) {
-        RCLCPP_INFO(this->get_logger(), "Attempting to set %s mode...", mode.c_str());
+        RCLCPP_INFO(this->get_logger(), "STATE → Attempting to set %s mode...", mode.c_str());
         if (!this->mode_client->wait_for_service(std::chrono::seconds(10))) {
-            RCLCPP_ERROR(this->get_logger(), "Mode service not available");
+            RCLCPP_ERROR(this->get_logger(), "STATE → Mode service not available");
             return;
         }
 
@@ -112,17 +111,17 @@ private:
             try {
                 auto response = result.get();
                 if (response->mode_sent) {
-                    RCLCPP_INFO(this->get_logger(), "Successfully set to %s mode", mode.c_str());
+                    RCLCPP_INFO(this->get_logger(), "STATE → Mode set: %s", mode.c_str());
                     return;
                 } else {
-                    RCLCPP_ERROR(this->get_logger(), "[%d] Failed to set %s mode", i, mode.c_str());
+                    RCLCPP_ERROR(this->get_logger(), "STATE → Mode set failed [%d/3]: %s", i, mode.c_str());
                 }
             } catch (const std::exception& e) {
-                RCLCPP_ERROR(this->get_logger(), "[%d] Service call failed for %s mode: %s", i, mode.c_str(), e.what());
+                RCLCPP_ERROR(this->get_logger(), "STATE → Mode error [%d/3]: %s", i, e.what());
             }
             rclcpp::sleep_for(std::chrono::seconds(2));
         }
-        RCLCPP_ERROR(this->get_logger(), "Failed to set %s mode after 3 attempts", mode.c_str());
+        RCLCPP_ERROR(this->get_logger(), "STATE → Mode set failed after 3 attempts: %s", mode.c_str());
     }
 
     // Callback group
@@ -138,7 +137,7 @@ private:
 };
 
 bool wait_for_mavros(rclcpp::Node::SharedPtr node, int timeout_seconds) {
-    RCLCPP_INFO(node->get_logger(), "⏳ Waiting for MAVROS to be ready...");
+    RCLCPP_INFO(node->get_logger(), "STATE → Waiting for MAVROS...");
 
     // Step 1: Wait for /mavros/state topic to show connection
     bool heartbeat_received = false;
@@ -154,12 +153,12 @@ bool wait_for_mavros(rclcpp::Node::SharedPtr node, int timeout_seconds) {
         auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start_time).count();
 
         if (elapsed > timeout_seconds) {
-            RCLCPP_ERROR(node->get_logger(), "❌ Timeout waiting for MAVROS heartbeat after %ds", timeout_seconds);
+            RCLCPP_ERROR(node->get_logger(), "STATE → MAVROS timeout after %ds", timeout_seconds);
             return false;
         }
 
         if (elapsed > 0 && elapsed % 5 == 0) {
-            RCLCPP_INFO(node->get_logger(), "   Still waiting for MAVROS connection... (%lds)", elapsed);
+            RCLCPP_INFO(node->get_logger(), "STATE → Waiting for MAVROS (%lds)", elapsed);
         }
 
         rclcpp::sleep_for(500ms);
@@ -169,32 +168,30 @@ bool wait_for_mavros(rclcpp::Node::SharedPtr node, int timeout_seconds) {
         return false;
     }
 
-    RCLCPP_INFO(node->get_logger(), "✅ MAVROS heartbeat detected");
+    RCLCPP_INFO(node->get_logger(), "STATE → MAVROS connected");
 
     // Step 2: Verify service availability with a test call
     auto test_client = node->create_client<mavros_msgs::srv::CommandBool>("/mavros/cmd/arming");
 
     if (!test_client->wait_for_service(std::chrono::seconds(5))) {
-        RCLCPP_ERROR(node->get_logger(), "❌ MAVROS arming service not available");
+        RCLCPP_ERROR(node->get_logger(), "STATE → MAVROS services not available");
         return false;
     }
 
-    RCLCPP_INFO(node->get_logger(), "✅ MAVROS services ready");
+    RCLCPP_INFO(node->get_logger(), "STATE → MAVROS ready");
     return true;
 }
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-
-    // Create temporary node with different name to avoid conflict
+    
     auto temp_node = std::make_shared<rclcpp::Node>("state_init");
-
-    // Declare parameter with default value (will be overridden by launch file if provided)
+    
     temp_node->declare_parameter<int>("mavros_init_timeout", 20);
     int timeout = temp_node->get_parameter("mavros_init_timeout").as_int();
 
     if (!wait_for_mavros(temp_node, timeout)) {
-        RCLCPP_FATAL(temp_node->get_logger(), "❌ MAVROS initialization failed - State node cannot start");
+        RCLCPP_FATAL(temp_node->get_logger(), "STATE → MAVROS init failed");
         rclcpp::shutdown();
         return 1;
     }
