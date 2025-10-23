@@ -1,0 +1,100 @@
+/gps_navigation:
+  ros__parameters:
+    navigation:
+      radius: 2.0
+
+      waypoints_A:
+        count: 5
+        waypoint_0:
+          latitude: 0.0
+          longitude: 0.0
+          altitude: 0.0
+        waypoint_1:
+          latitude: 0.0
+          longitude: 0.0
+          altitude: 0.0
+        waypoint_2:
+          latitude: 0.0
+          longitude: 0.0
+          altitude: 0.0
+        waypoint_3:
+          latitude: 0.0
+          longitude: 0.0
+          altitude: 0.0
+        waypoint_4:
+          latitude: 0.0
+          longitude: 0.0
+          altitude: 0.0
+
+      waypoints_B:
+        count: 5
+        waypoint_0:
+          latitude: 0.0
+          longitude: 0.0
+          altitude: 0.0
+        waypoint_1:
+          latitude: 0.0
+          longitude: 0.0
+          altitude: 0.0
+        waypoint_2:
+          latitude: 0.0
+          longitude: 0.0
+          altitude: 0.0
+        waypoint_3:
+          latitude: 0.0
+          longitude: 0.0
+          altitude: 0.0
+        waypoint_4:
+          latitude: 0.0
+          longitude: 0.0
+          altitude: 0.0
+
+/compass_navigation:
+  ros__parameters:
+    compass:
+      heading:
+        A:
+          count: 3
+          "1": 0.0
+          "2": 275.0
+          "3": 180.0
+        B:
+          count: 3
+          "1": 0.0
+          "2": 85.0
+          "3": 180.0
+
+      rc:
+        min_value: 1300
+        mid_value: 1500
+        max_value: 1700
+
+      pid:
+        yaw:
+          kp: 3.0
+          ki: 0.0
+          kd: 0.3
+          min_output: -1.0
+          max_output: 1.0
+
+      tolerance: 10.0
+
+/vision_navigation:
+  ros__parameters:
+    vision:
+      rc:
+        throttle: [2000, 1700]
+        min_value: [1000, 1300]
+        mid_value: 1500
+        max_value: [2000, 1700]
+
+      pid:
+        yaw:
+          kp: 0.7
+          ki: 0.07
+          kd: 0.00005
+          min_output: -1.0
+          max_output: 1.0
+
+      timer:
+        docking: 3.0

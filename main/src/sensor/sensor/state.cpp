@@ -184,9 +184,9 @@ bool wait_for_mavros(rclcpp::Node::SharedPtr node, int timeout_seconds) {
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-    
+
     auto temp_node = std::make_shared<rclcpp::Node>("state_init");
-    
+
     temp_node->declare_parameter<int>("mavros_init_timeout", 20);
     int timeout = temp_node->get_parameter("mavros_init_timeout").as_int();
 

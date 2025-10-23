@@ -60,9 +60,10 @@ class VisionNode(Node):
         self.load_parameter()
         camera_device = self.get_parameter('camera_device').get_parameter_value().integer_value
 
-        # Subscriber Initialization  
+        # Subscriber Initialization
         self.mode_sub = self.create_subscription(Bool, '/robot/mode', self.mode_callback, qos_profile_services_default)
         self.gps_control_sub = self.create_subscription(Bool, '/robot/control/gps', self.gps_control_callback, qos_profile_services_default)
+        self.compass_control_sub = self.create_subscription(Bool, '/robot/control/compass', self.compass_control_callback, qos_profile_services_default)
         self.vision_control_sub = self.create_subscription(Bool, '/robot/control/vision', self.vision_control_callback, qos_profile_services_default)
         self.lidar_sub = self.create_subscription(Bool, '/robot/lidar', self.lidar_callback, qos_profile_services_default)
         self.mission_sub = self.create_subscription(String, '/robot/mission', self.mission_callback, qos_profile_services_default)
@@ -109,6 +110,7 @@ class VisionNode(Node):
         # Control State Variables
         self.auto_mode = True
         self.gps_control = False
+        self.compass_control = False
         self.vision_control = False
         self.lidar = False
         self.is_surface = False
@@ -218,7 +220,10 @@ class VisionNode(Node):
     
     def gps_control_callback(self, msg):
         self.gps_control = msg.data
-    
+
+    def compass_control_callback(self, msg):
+        self.compass_control = msg.data
+
     def vision_control_callback(self, msg):
         self.vision_control = msg.data
     
@@ -245,7 +250,7 @@ class VisionNode(Node):
 
     def _handle_surface_imaging(self, img_msg):
         if self.auto_mode:
-            if not self.gps_control and self.vision_control:
+            if not self.gps_control and not self.compass_control and self.vision_control:
                 if self.mission == "Surface Imaging":
                     if self.lidar and not self.is_surface:
                         self.is_surface = True

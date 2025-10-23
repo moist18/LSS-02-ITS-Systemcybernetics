@@ -124,7 +124,7 @@ private:
         return 0.0;
     }
 
-    void set_navigation_control(const std::string& mode, bool gps, bool vision) {
+    void set_navigation_control(const std::string& mode, bool gps, bool compass, bool vision) {
         if (this->current_state.mode != mode) {
             auto mode_msg = std_msgs::msg::String();
             mode_msg.data = mode;
@@ -132,25 +132,34 @@ private:
         }
 
         this->gps_control = gps;
+        this->compass_control = compass;
         this->vision_control = vision;
 
         auto gps_msg = std_msgs::msg::Bool();
         gps_msg.data = gps;
         this->gps_control_pub->publish(gps_msg);
 
+        auto compass_msg = std_msgs::msg::Bool();
+        compass_msg.data = compass;
+        this->compass_control_pub->publish(compass_msg);
+
         auto vision_msg = std_msgs::msg::Bool();
         vision_msg.data = vision;
         this->vision_control_pub->publish(vision_msg);
 
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "PLANNER: Mode:%s | Publishing GPS:%d Vision:%d", mode.c_str(), gps, vision);
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "PLANNER → Mode:%s | GPS:%d Compass:%d Vision:%d", mode.c_str(), gps, compass, vision);
     }
 
     void gps_navigation() {
-        this->set_navigation_control("GUIDED", true, false);
+        this->set_navigation_control("GUIDED", true, false, false);
+    }
+
+    void compass_navigation() {
+        this->set_navigation_control("MANUAL", false, true, false);
     }
 
     void vision_navigation() {
-        this->set_navigation_control("MANUAL", false, true);
+        this->set_navigation_control("MANUAL", false, false, true);
     }
 
     void swap_buoy_colors() {
@@ -160,6 +169,7 @@ private:
     }
 
     void handle_waypoint_0(double current_time) {
+        // Waypoint 0: Floating Ball - Vision (with timer) then GPS
         this->mission = "Floating Ball";
 
         if (this->nav_start_time.seconds() == 0) {
@@ -181,10 +191,12 @@ private:
     }
 
     void handle_waypoint_1(double current_time) {
+        // Waypoint 1: GPS navigation only
         this->gps_navigation();
     }
 
     void handle_waypoint_2(double current_time) {
+        // Waypoint 2: Vision (with timer) then GPS
         if (this->nav_start_time.seconds() == 0) {
             this->nav_start_time = this->now();
         }
@@ -204,10 +216,12 @@ private:
     }
 
     void handle_waypoint_3(double current_time) {
+        // Waypoint 3: GPS navigation only
         this->gps_navigation();
     }
 
     void handle_waypoint_4(double current_time) {
+        // Waypoint 4: Vision (with timer) → Swap buoy → Surface Imaging → Vision until surface → Reverse timer → GPS
         if (this->nav_start_time.seconds() == 0) {
             this->nav_start_time = this->now();
         }
@@ -250,11 +264,13 @@ private:
     }
 
     void handle_waypoint_5(double current_time) {
+        // Waypoint 5: Underwater Imaging - GPS navigation
         this->mission = "Underwater Imaging";
         this->gps_navigation();
     }
 
     void handle_waypoint_6(double current_time) {
+        // Waypoint 6: Vision until underwater complete, then reverse timer, then GPS
         if (!this->is_underwater) {
             this->vision_navigation();
         } else {
@@ -278,11 +294,13 @@ private:
     }
 
     void handle_waypoint_7(double current_time) {
+        // Waypoint 7: Docking - GPS navigation
         this->mission = "Docking";
         this->gps_navigation();
     }
 
     void handle_waypoint_8(double current_time) {
+        // Waypoint 8: Vision navigation - road to finish
         this->vision_navigation();
         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "PLANNER: Road to Finish!");
     }
@@ -392,6 +410,7 @@ private:
     // Publisher Declaration
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr setmode_pub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr gps_control_pub;
+    rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr compass_control_pub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr vision_control_pub;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mission_pub;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr left_buoy_pub;
@@ -416,6 +435,7 @@ private:
     std::string right_buoy = "red_buoy";
     bool auto_mode = true;
     bool gps_control = false;
+    bool compass_control = false;
     bool vision_control = false;
     bool is_swap = false;
     bool is_surface = false;

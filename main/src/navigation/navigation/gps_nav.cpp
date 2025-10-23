@@ -30,7 +30,12 @@ public:
         this->declare_parameter<int>("navigation.waypoints_A.count", 0);
         this->declare_parameter<int>("navigation.waypoints_B.count", 0);
 
-        for (int i = 0; i < 8; ++i) {
+        // Dynamically declare parameters based on counts
+        int count_A = this->get_parameter("navigation.waypoints_A.count").as_int();
+        int count_B = this->get_parameter("navigation.waypoints_B.count").as_int();
+        int max_count = std::max(count_A, count_B);
+
+        for (int i = 0; i < max_count; ++i) {
             this->declare_parameter<double>("navigation.waypoints_A.waypoint_" + std::to_string(i) + ".latitude", 0.0);
             this->declare_parameter<double>("navigation.waypoints_A.waypoint_" + std::to_string(i) + ".longitude", 0.0);
             this->declare_parameter<double>("navigation.waypoints_A.waypoint_" + std::to_string(i) + ".altitude", 0.0);
@@ -47,6 +52,7 @@ public:
         this->global_pos_sub = this->create_subscription<sensor_msgs::msg::NavSatFix>("/mavros/global_position/global", rclcpp::SensorDataQoS(), std::bind(&GPSNavigation::global_pos_callback, this, std::placeholders::_1));
         this->mode_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::mode_callback, this, std::placeholders::_1));
         this->gps_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/gps", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::gps_control_callback, this, std::placeholders::_1));
+        this->compass_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/compass", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::compass_control_callback, this, std::placeholders::_1));
         this->vision_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/vision", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::vision_control_callback, this, std::placeholders::_1));
         this->trajectory_sub = this->create_subscription<std_msgs::msg::String>("/robot/trajectory", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::trajectory_callback, this, std::placeholders::_1));
         this->reset_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/mission/reset", rclcpp::ServicesQoS(), std::bind(&GPSNavigation::reset_mission_callback, this, std::placeholders::_1));
@@ -113,6 +119,11 @@ private:
     void gps_control_callback(const std_msgs::msg::Bool::SharedPtr msg) {
         std::lock_guard<std::mutex> lock(this->mutex);
         this->gps_control = msg->data;
+    }
+
+    void compass_control_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
+        this->compass_control = msg->data;
     }
 
     void vision_control_callback(const std_msgs::msg::Bool::SharedPtr msg) {
@@ -193,9 +204,9 @@ private:
             const double distance = calculate_distance(this->current_position.latitude, this->current_position.longitude, current_wp.latitude, current_wp.longitude);
 
             if (this->auto_mode) {
-                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "WP_%d: Dist %.2fm | GPS:%d Vision:%d", this->current_waypoint, distance, this->gps_control, this->vision_control);
+                RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "WP_%d: Dist %.2fm | GPS:%d Compass:%d Vision:%d", this->current_waypoint, distance, this->gps_control, this->compass_control, this->vision_control);
 
-                if (this->gps_control && !this->vision_control) {
+                if (this->gps_control && !this->compass_control && !this->vision_control) {
                     gps_navigation(current_wp.latitude, current_wp.longitude, current_wp.altitude);
                 }
 
@@ -226,6 +237,7 @@ private:
     rclcpp::Subscription<sensor_msgs::msg::NavSatFix>::SharedPtr global_pos_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr mode_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr gps_control_sub;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr compass_control_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr vision_control_sub;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr trajectory_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr reset_mission_sub;
@@ -252,6 +264,7 @@ private:
     int current_waypoint = 0;
     bool auto_mode = true;
     bool gps_control = false;
+    bool compass_control = false;
     bool vision_control = false;
     bool is_finish = false;
 };
