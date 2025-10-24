@@ -15,7 +15,7 @@ public:
     StateNode()
         : Node("state_node") {
 
-        // Create callback group for subscriptions
+        // Callback Group Initialization
         callback_group_ = this->create_callback_group(rclcpp::CallbackGroupType::Reentrant);
         auto sub_options = rclcpp::SubscriptionOptions();
         sub_options.callback_group = callback_group_;
@@ -28,7 +28,7 @@ public:
         this->arming_client = this->create_client<mavros_msgs::srv::CommandBool>("/mavros/cmd/arming");
         this->mode_client = this->create_client<mavros_msgs::srv::SetMode>("/mavros/set_mode");
 
-        RCLCPP_INFO(this->get_logger(), "State node started");
+        RCLCPP_INFO(this->get_logger(), "STATE → node started");
     }
 
 private:
@@ -124,7 +124,7 @@ private:
         RCLCPP_ERROR(this->get_logger(), "STATE → Mode set failed after 3 attempts: %s", mode.c_str());
     }
 
-    // Callback group
+    // Callback Group Declaration
     rclcpp::CallbackGroup::SharedPtr callback_group_;
 
     // Subscriber Declaration
@@ -137,7 +137,7 @@ private:
 };
 
 bool wait_for_mavros(rclcpp::Node::SharedPtr node, int timeout_seconds) {
-    RCLCPP_INFO(node->get_logger(), "STATE → Waiting for MAVROS...");
+    RCLCPP_WARN_THROTTLE(node->get_logger(), *node->get_clock(), 1000, "STATE → Waiting for MAVROS...");
 
     // Step 1: Wait for /mavros/state topic to show connection
     bool heartbeat_received = false;
@@ -158,7 +158,7 @@ bool wait_for_mavros(rclcpp::Node::SharedPtr node, int timeout_seconds) {
         }
 
         if (elapsed > 0 && elapsed % 5 == 0) {
-            RCLCPP_INFO(node->get_logger(), "STATE → Waiting for MAVROS (%lds)", elapsed);
+            RCLCPP_WARN_THROTTLE(node->get_logger(), *node->get_clock(), 1000, "STATE → Waiting for MAVROS (%lds)", elapsed);
         }
 
         rclcpp::sleep_for(500ms);

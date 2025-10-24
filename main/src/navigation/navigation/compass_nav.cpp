@@ -76,13 +76,16 @@ public:
             this->declare_parameter<double>("compass.heading.B." + std::to_string(i), 0.0);
         }
 
+        // RC Parameter Declaration
         this->declare_parameter<int>("compass.rc.min_value", 1300);
         this->declare_parameter<int>("compass.rc.mid_value", 1500);
         this->declare_parameter<int>("compass.rc.max_value", 1700);
         this->declare_parameter<double>("compass.tolerance", 10.0);
-        this->declare_parameter<double>("compass.pid.yaw.kp", 1.0);
+
+        // PID Parameter Declaration
+        this->declare_parameter<double>("compass.pid.yaw.kp", 3.0);
         this->declare_parameter<double>("compass.pid.yaw.ki", 0.0);
-        this->declare_parameter<double>("compass.pid.yaw.kd", 0.1);
+        this->declare_parameter<double>("compass.pid.yaw.kd", 0.3);
         this->declare_parameter<double>("compass.pid.yaw.min_output", -1.0);
         this->declare_parameter<double>("compass.pid.yaw.max_output", 1.0);
 
@@ -107,7 +110,7 @@ public:
         this->loop_timer = this->create_wall_timer(50ms, std::bind(&CompassNavigation::runner, this));
         this->param_timer = this->create_wall_timer(1s, std::bind(&CompassNavigation::param_callback, this));
 
-        RCLCPP_INFO(this->get_logger(), "Compass Manual Navigation node started");
+        RCLCPP_INFO(this->get_logger(), "COMPASS-NAV → Node started");
     }
 
 private:
@@ -115,6 +118,7 @@ private:
         this->target_heading_A.clear();
         this->target_heading_B.clear();
 
+        // Heading Parameter Initialization
         int count_A = this->get_parameter("compass.heading.A.count").as_int();
         for (int i = 1; i <= count_A; ++i) {
             std::string key = std::to_string(i);
@@ -127,10 +131,13 @@ private:
             this->target_heading_B[key] = this->get_parameter("compass.heading.B." + key).as_double();
         }
 
+        // RC Parameter Initialization
         this->rc_min_value = this->get_parameter("compass.rc.min_value").as_int();
         this->rc_mid_value = this->get_parameter("compass.rc.mid_value").as_int();
         this->rc_max_value = this->get_parameter("compass.rc.max_value").as_int();
         this->heading_tolerance = this->get_parameter("compass.tolerance").as_double();
+
+        // PID Parameter Initialization
         double yaw_kp = this->get_parameter("compass.pid.yaw.kp").as_double();
         double yaw_ki = this->get_parameter("compass.pid.yaw.ki").as_double();
         double yaw_kd = this->get_parameter("compass.pid.yaw.kd").as_double();
@@ -139,13 +146,11 @@ private:
 
         // Initialize PID controller
         this->yaw_pid = std::make_unique<PID>(this->get_clock(), yaw_kp, yaw_ki, yaw_kd, yaw_min, yaw_max);
-
-        RCLCPP_INFO(this->get_logger(), "COMPASS-MANUAL → Parameters loaded | A:%d B:%d | Tolerance: %.1f°, Kp: %.2f", count_A, count_B, this->heading_tolerance, yaw_kp);
     }
 
     void param_callback() {
         this->load_parameter();
-        RCLCPP_INFO(this->get_logger(), "COMPASS-MANUAL → Parameters Reloaded!");
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "COMPASS-NAV → Parameters Reloaded!");
     }
 
     void compass_hdg_callback(const std_msgs::msg::Float64::SharedPtr msg) {
@@ -197,7 +202,7 @@ private:
             if (this->yaw_pid) {
                 this->yaw_pid->reset();
             }
-            RCLCPP_INFO(this->get_logger(), "COMPASS-MANUAL → Successfully Reset Mission!");
+            RCLCPP_INFO(this->get_logger(), "COMPASS-NAV → Successfully Reset Mission!");
         }
     }
 
@@ -214,6 +219,17 @@ private:
         return error;
     }
 
+    void override_control(int yaw, int pitch, int throttle, int lateral) {
+        mavros_msgs::msg::OverrideRCIn rc_override;
+        rc_override.channels.fill(mavros_msgs::msg::OverrideRCIn::CHAN_NOCHANGE);
+        rc_override.channels[0] = static_cast<uint16_t>(yaw);
+        rc_override.channels[1] = static_cast<uint16_t>(pitch);
+        rc_override.channels[2] = static_cast<uint16_t>(throttle);
+        rc_override.channels[3] = static_cast<uint16_t>(lateral);
+        this->rc_override_pub->publish(rc_override);
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "COMPASS-NAV → RC Y:%d", yaw);
+    }
+
     bool compass_navigation(double target_heading, double tolerance) {
         target_heading = fmod(target_heading, 360.0);
         if (target_heading < 0.0) {
@@ -223,29 +239,29 @@ private:
         double error = this->get_heading_error(target_heading);
 
         if (fabs(error) <= tolerance) {
-            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "COMPASS-MANUAL → Target heading reached! Current: %.1f°", this->current_heading);
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "COMPASS-NAV → Target heading reached! Current: %.1f°", this->current_heading);
             return true;
         }
 
         // Compute PID output (-1.0 to 1.0)
         double yaw_control = this->yaw_pid->compute(error);
 
-        // Turning PID Output to RC
+        // Map PID output to RC PWM values
+        int yaw_output;
+        
         if (yaw_control > 0.0) {
+            // Turn right: 1500 to max
             yaw_output = this->rc_mid_value + static_cast<int>(yaw_control * (this->rc_max_value - this->rc_mid_value));
         } else {
+            // Turn left: min to 1500
             yaw_output = this->rc_mid_value + static_cast<int>(yaw_control * (this->rc_mid_value - this->rc_min_value));
         }
+
+        // Clamp to operational limits
         yaw_output = std::max(this->rc_min_value, std::min(this->rc_max_value, yaw_output));
 
         // Publish RC override
-        auto rc_override = mavros_msgs::msg::OverrideRCIn();
-        rc_override.channels.fill(mavros_msgs::msg::OverrideRCIn::CHAN_NOCHANGE);
-        rc_override.channels[0] = static_cast<uint16_t>(yaw_output);
-
-        this->rc_override_pub->publish(rc_override);
-
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "COMPASS-MANUAL → Current: %.1f°, Target: %.1f°, Error: %.1f°, Yaw: %d", this->current_heading, target_heading, error, yaw_output);
+        this->override_control(yaw_output, 1500, 1500, 1500);
 
         return false;
     }
@@ -264,7 +280,7 @@ private:
                     if (!this->compass_success) {
                         if (this->compass_navigation(target_heading, this->heading_tolerance)) {
                             this->compass_success = true;
-                            RCLCPP_INFO(this->get_logger(), "COMPASS-MANUAL → Compass Navigation Completed!");
+                            RCLCPP_INFO(this->get_logger(), "COMPASS-NAV → Compass Navigation Completed!");
                         }
                     }
                 }
@@ -324,7 +340,6 @@ private:
     bool vision_control = false;
     bool compass_success = false;
     bool prev_compass_success = false;
-    int yaw_output = 1500;
 };
 
 int main(int argc, char** argv) {

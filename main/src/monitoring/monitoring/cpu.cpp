@@ -21,7 +21,7 @@ public:
         // Rate Timer Initialization
         this->loop_timer = this->create_wall_timer(1s, std::bind(&CPUNode::data_publisher, this));
 
-        RCLCPP_INFO(this->get_logger(), "CPU node started");
+        RCLCPP_INFO(this->get_logger(), "MONITORING → CPU node started");
     }
 
 private:
@@ -75,7 +75,12 @@ private:
         auto message = std_msgs::msg::Float32();
         message.data = cpu_usage;
         this->cpu_pub->publish(message);
-        RCLCPP_INFO(this->get_logger(), "CPU Usage: %.2f %%", cpu_usage);
+
+        if (cpu_usage > 80.0f) {
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "MONITORING → CPU Usage is high: %.2f %%", cpu_usage);
+        } else {
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "MONITORING → CPU Usage: %.2f %%", cpu_usage);
+        }
     }
 
     // Publisher Declaration

@@ -46,7 +46,10 @@ class VisionNode(Node):
 
         # Vision Parameter Declaration
         self.declare_parameter('model_path', f'{ROOT}/models/yolo11s_x640_model')
-        self.declare_parameter('camera_device', 0)
+        self.declare_parameter('config.camera_device', 0)
+        self.declare_parameter('config.width', 640)
+        self.declare_parameter('config.height', 480)
+        self.declare_parameter('config.fps', 30)
         self.declare_parameter('vision.detection.confidence', 0.65)
         self.declare_parameter('vision.detection.iou_threshold', 0.5)
         self.declare_parameter('vision.detection.image_size', 416)
@@ -58,8 +61,13 @@ class VisionNode(Node):
         
         # Parameter Setup
         self.load_parameter()
-        camera_device = self.get_parameter('camera_device').get_parameter_value().integer_value
-
+        
+        # Camera Parameter Initialization
+        camera_device = self.get_parameter('config.camera_device').get_parameter_value().integer_value
+        self.WIDTH = self.get_parameter('config.width').get_parameter_value().integer_value
+        self.HEIGHT = self.get_parameter('config.height').get_parameter_value().integer_value
+        self.FPS = self.get_parameter('config.fps').get_parameter_value().integer_value
+        
         # Subscriber Initialization
         self.mode_sub = self.create_subscription(Bool, '/robot/mode', self.mode_callback, qos_profile_services_default)
         self.gps_control_sub = self.create_subscription(Bool, '/robot/control/gps', self.gps_control_callback, qos_profile_services_default)
@@ -92,10 +100,6 @@ class VisionNode(Node):
             self.get_logger().warn(f"Failed to load multiple models, falling back to single model: {e}")
             self.models = [YOLO(model=model_path, task='detect')]
             self.cls_dict = self.models[0].names
-
-        # Constant Initialization - Hardcoded values
-        self.WIDTH = 640
-        self.HEIGHT = 480
 
         # Threading and Buffering System Initialization
         self.frame_buffer = deque(maxlen=5)
@@ -132,18 +136,18 @@ class VisionNode(Node):
             raise RuntimeError(f"Camera /dev/video{camera_device} not available")
 
         self.cam.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        self.cam.set(cv2.CAP_PROP_FPS, 30)
         self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, self.WIDTH)
         self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, self.HEIGHT)
+        self.cam.set(cv2.CAP_PROP_FPS, self.FPS)
         self.cam.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
 
         # Rate Timer Initialization
-        self.loop_timer = self.create_timer(1.0/30, self.runner)  # 30 Hz or 30 FPS
+        self.loop_timer = self.create_timer(1.0/self.FPS, self.runner)
         self.param_timer = self.create_timer(1.0, self.param_callback)
 
         # Threading Setup
         self.setup_rknn_threading()
-        self.get_logger().info("RKNN-optimized Vision node started")
+        self.get_logger().info("S-VIZ → node started")
 
     def warm_up_models(self):
         self.get_logger().info("Warming up RKNN models...")
@@ -214,6 +218,7 @@ class VisionNode(Node):
 
     def param_callback(self):
         self.load_parameter()
+        self.get_logger().info('S-VIZ → Parameters Reloaded!', throttle_duration_sec=5.0)
     
     def mode_callback(self, msg):
         self.auto_mode = msg.data
@@ -300,8 +305,8 @@ class VisionNode(Node):
                         )
 
                 # Debug: Show processed image
-                # cv2.imshow('Vision Debug', frame)
-                # cv2.waitKey(1)
+                cv2.imshow('Vision Cam', frame)
+                cv2.waitKey(1)
 
                 # Publish processed image
                 img_msg = self.bridge.cv2_to_imgmsg(frame, 'bgr8')
@@ -314,8 +319,8 @@ class VisionNode(Node):
                 # No processed results available, use input frame
 
                 # Debug: Show processed image
-                # cv2.imshow('Vision Debug', input_frame)
-                # cv2.waitKey(1)
+                cv2.imshow('Vision Cam', input_frame)
+                cv2.waitKey(1)
 
                 img_msg = self.bridge.cv2_to_imgmsg(input_frame, 'bgr8')
                 self.navigation_vision_pub.publish(img_msg)
@@ -324,8 +329,8 @@ class VisionNode(Node):
             # No processed results available, use input frame
 
             # Debug: Show processed image
-            # cv2.imshow('Vision Debug', input_frame)
-            # cv2.waitKey(1)
+            cv2.imshow('Vision Cam', input_frame)
+            cv2.waitKey(1)
 
             img_msg = self.bridge.cv2_to_imgmsg(input_frame, 'bgr8')
             self.navigation_vision_pub.publish(img_msg)
@@ -334,14 +339,12 @@ class VisionNode(Node):
         # Publish detection results for navigation node
         self.obj_detection_pub.publish(Bool(data=objects_detected))
         self.raw_yaw_pub.publish(Int32(data=int(raw_yaw)))
-        
-        if objects_detected:
-            self.get_logger().info(f"S-VIZ → OBJ | Yaw:{int(raw_yaw)}", throttle_duration_sec=2)
 
     def calculate_fps(self):
         current_time = self.get_clock().now().nanoseconds / 1e9
         self.fps = 1 / (current_time - self.prev_time)
         self.prev_time = current_time
+        self.get_logger().info(f"S-VIZ → FPS: {self.fps:.2f}", throttle_duration_sec=5.0)
 
     def runner(self):
         success, frame = self.cam.read()

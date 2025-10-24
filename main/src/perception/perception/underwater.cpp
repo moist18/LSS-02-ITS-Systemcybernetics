@@ -6,18 +6,22 @@
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/string.hpp>
 
-using namespace std::chrono_literals;
-
 class UnderwaterNode : public rclcpp::Node {
 public:
     UnderwaterNode()
         : Node("underwater_node") {
 
         // Parameter Declaration
-        this->declare_parameter<int>("camera_device", 1);
+        this->declare_parameter<int>("config.camera_device", 2);
+        this->declare_parameter<int>("config.width", 640);
+        this->declare_parameter<int>("config.height", 480);
+        this->declare_parameter<int>("config.fps", 30);
 
         // Parameter Setup
-        this->camera_device = this->get_parameter("camera_device").as_int();
+        this->camera_device = this->get_parameter("config.camera_device").as_int();
+        this->WIDTH = this->get_parameter("config.width").as_int();
+        this->HEIGHT = this->get_parameter("config.height").as_int();
+        this->FPS = this->get_parameter("config.fps").as_int();
 
         // Subscriber Initialization
         this->mode_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::mode_callback, this, std::placeholders::_1));
@@ -34,9 +38,9 @@ public:
         this->mission_pub = this->create_publisher<std_msgs::msg::String>("/robot/mission", rclcpp::ServicesQoS());
 
         // Rate Timer Initialization
-        this->loop_timer = this->create_wall_timer(50ms, std::bind(&UnderwaterNode::runner, this));
+        this->loop_timer = this->create_wall_timer(std::chrono::milliseconds(1000 / this->FPS), std::bind(&UnderwaterNode::runner, this));
 
-        RCLCPP_INFO(this->get_logger(), "Underwater node started");
+        RCLCPP_INFO(this->get_logger(), "U-VIZ → node started");
     }
 
 private:
@@ -103,14 +107,19 @@ private:
 
         if (!camera_initialized) {
             this->cam.open(this->camera_device);
+
             if (!this->cam.isOpened()) {
                 RCLCPP_ERROR(this->get_logger(), "U-VIZ → Failed to open camera /dev/video%d", this->camera_device);
                 return;
             }
+
+            this->cam.set(cv::CAP_PROP_BUFFERSIZE, 1);
             this->cam.set(cv::CAP_PROP_FRAME_WIDTH, this->WIDTH);
             this->cam.set(cv::CAP_PROP_FRAME_HEIGHT, this->HEIGHT);
-            RCLCPP_INFO(this->get_logger(), "U-VIZ → Camera opened successfully: /dev/video%d", this->camera_device);
+            this->cam.set(cv::CAP_PROP_FPS, this->FPS);
+
             camera_initialized = true;
+            RCLCPP_INFO(this->get_logger(), "U-VIZ → Camera opened successfully: /dev/video%d", this->camera_device);
         }
 
         cv::Mat frame;
@@ -118,9 +127,12 @@ private:
 
         if (success && !frame.empty()) {
             processor(frame);
+
+            // Debug: Show underwater camera feed
+            cv::imshow("Underwater Camera", frame);
+            cv::waitKey(1);
         }
 
-        // Publish underwater mission status
         {
             std::lock_guard<std::mutex> lock(this->mutex);
             auto underwater_msg = std_msgs::msg::Bool();
@@ -149,12 +161,11 @@ private:
     // Mutex Declaration
     std::mutex mutex;
 
-    // Constant Initialization
-    int WIDTH = 640;
-    int HEIGHT = 480;
-
     // Variable Initialization
     int camera_device;
+    int WIDTH;
+    int HEIGHT;
+    int FPS;
     cv::VideoCapture cam;
     bool auto_mode = true;
     bool gps_control = false;

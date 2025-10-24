@@ -13,16 +13,17 @@ class RecorderNode(Node):
 
         # Declare parameters
         self.declare_parameter('video_dir', '/home/ubuntu/ASV-2025/recordings')
-        self.declare_parameter('fps', 20)
-        self.declare_parameter('resolution', [640, 480])
-        self.declare_parameter('codec', 'MJPG')
+        self.declare_parameter('config.camera_device', 0)
+        self.declare_parameter('config.resolution', [640, 480])
+        self.declare_parameter('config.fps', 20)
+        self.declare_parameter('config.codec', 'MJPG')
 
         # Get parameters
         video_dir_param = self.get_parameter('video_dir').get_parameter_value().string_value
         self.video_dir = Path(video_dir_param).expanduser()
-        self.fps = self.get_parameter('fps').get_parameter_value().integer_value
-        resolution = self.get_parameter('resolution').get_parameter_value().integer_array_value
-        codec_str = self.get_parameter('codec').get_parameter_value().string_value
+        self.fps = self.get_parameter('config.fps').get_parameter_value().integer_value
+        resolution = self.get_parameter('config.resolution').get_parameter_value().integer_array_value
+        codec_str = self.get_parameter('config.codec').get_parameter_value().string_value
 
         # Variable Initialization
         self.width = resolution[0]
@@ -41,7 +42,7 @@ class RecorderNode(Node):
         self.get_logger().info(f"📂 Video directory: {self.video_dir}")
 
         # Camera Configuration (BEFORE video writer to check camera first)
-        camera_device = self.get_parameter('camera_device').get_parameter_value().integer_value
+        camera_device = self.get_parameter('config.camera_device').get_parameter_value().integer_value
         self.cap = cv2.VideoCapture(camera_device)
         self.get_logger().info(f"📷 Recorder using camera device: /dev/video{camera_device}")
 

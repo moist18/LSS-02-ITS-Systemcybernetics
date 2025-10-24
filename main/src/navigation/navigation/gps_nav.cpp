@@ -30,7 +30,6 @@ public:
         this->declare_parameter<int>("navigation.waypoints_A.count", 0);
         this->declare_parameter<int>("navigation.waypoints_B.count", 0);
 
-        // Dynamically declare parameters based on counts
         int count_A = this->get_parameter("navigation.waypoints_A.count").as_int();
         int count_B = this->get_parameter("navigation.waypoints_B.count").as_int();
         int max_count = std::max(count_A, count_B);
@@ -65,7 +64,7 @@ public:
         this->loop_timer = this->create_wall_timer(20ms, std::bind(&GPSNavigation::runner, this));
         this->param_timer = this->create_wall_timer(1s, std::bind(&GPSNavigation::param_callback, this));
 
-        RCLCPP_INFO(this->get_logger(), "GPS Navigation node started");
+        RCLCPP_INFO(this->get_logger(), "GPS-NAV → node started");
     }
 
 private:
@@ -97,13 +96,11 @@ private:
         this->radius = this->get_parameter("navigation.radius").as_double();
         this->waypoints_A = load_waypoints("A");
         this->waypoints_B = load_waypoints("B");
-
-        RCLCPP_INFO(get_logger(), "Parameters loaded - Radius: %.2f, Waypoints A: %zu, Waypoints B: %zu", this->radius, this->waypoints_A.size(), this->waypoints_B.size());
     }
 
     void param_callback() {
         load_parameter();
-        RCLCPP_INFO(this->get_logger(), "GPS-NAV → Parameters Reloaded!");
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "GPS-NAV → Parameters Reloaded!");
     }
 
     void global_pos_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
@@ -229,7 +226,7 @@ private:
                 }
             }
         } else if (this->is_finish) {
-            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "GPS-NAV →  Road to Finish!");
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "GPS-NAV →  Road to Finish!");
         }
     }
 

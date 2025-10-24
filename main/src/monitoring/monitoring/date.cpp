@@ -17,7 +17,7 @@ public:
         // Rate Timer Initialization
         this->loop_timer = this->create_wall_timer(1s, std::bind(&DateNode::data_publisher, this));
 
-        RCLCPP_INFO(this->get_logger(), "Date node started");
+        RCLCPP_INFO(this->get_logger(), "MONITORING → Date node started");
     }
 
 private:
@@ -54,7 +54,7 @@ private:
         };
 
         this->date_pub->publish(date_data);
-        RCLCPP_INFO(this->get_logger(), "Datetime: %s, %s [%s]", day.c_str(), date.c_str(), time.c_str());
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "MONITORING → Datetime: %s, %s [%s]", day.c_str(), date.c_str(), time.c_str());
     }
 
     // Publisher Declaration

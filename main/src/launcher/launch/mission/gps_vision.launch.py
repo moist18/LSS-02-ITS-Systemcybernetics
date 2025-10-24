@@ -124,13 +124,14 @@ def generate_launch_description():
         
         # PERCEPTION PACKAGE
         
-        # Node(
-        #     package='perception',
-        #     executable='underwater',
-        #     name='underwater_node',
-        #     output='screen',
-        #     emulate_tty=True
-        # ),
+        Node(
+            package='perception',
+            executable='underwater',
+            name='underwater_node',
+            output='screen',
+            emulate_tty=True,
+            parameters=[perception_param]
+        ),
         Node(
             package='perception',
             executable='vision.py',
@@ -151,22 +152,22 @@ def generate_launch_description():
             emulate_tty=True,
             parameters=[sensor_param]
         ),
-        # Node(
-        #     package='rplidar_ros',
-        #     executable='rplidar_node',
-        #     name='rplidar_node',
-        #     output='screen',
-        #     emulate_tty=True,
-        #     parameters=[sensor_param]
-        # ),
-        # Node(
-        #     package='sensor',
-        #     executable='rplidar',
-        #     name='lidar_node',
-        #     output='screen',
-        #     emulate_tty=True,
-        #     parameters=[sensor_param]
-        # ),
+        Node(
+            package='rplidar_ros',
+            executable='rplidar_node',
+            name='rplidar_node',
+            output='screen',
+            emulate_tty=True,
+            parameters=[sensor_param]
+        ),
+        Node(
+            package='sensor',
+            executable='rplidar',
+            name='lidar_node',
+            output='screen',
+            emulate_tty=True,
+            parameters=[sensor_param]
+        ),
         Node(
             package='sensor',
             executable='state',

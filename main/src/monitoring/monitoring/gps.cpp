@@ -25,7 +25,7 @@ public:
         // Rate Timer Initialization
         this->loop_timer = this->create_wall_timer(1s, std::bind(&GPSNode::data_publisher, this));
 
-        RCLCPP_INFO(this->get_logger(), "GPS node started");
+        RCLCPP_INFO(this->get_logger(), "MONITORING → GPS node started");
     }
 
 private:
@@ -99,8 +99,8 @@ private:
                 sog_data.data = { static_cast<float>(kmh_value), static_cast<float>(knot_value) };
                 this->sog_pub->publish(sog_data);
 
-                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Current COG: %.2f°", cog_value);
-                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "Current SOG: %.2f km/h", sog_data.data[0]);
+                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "MONITORING → Current COG: %.2f°", cog_value);
+                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "MONITORING → Current SOG: %.2f km/h", sog_data.data[0]);
             }
 
             // Update previous values

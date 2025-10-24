@@ -11,6 +11,19 @@ sudo apt update
 sudo apt install python3-colcon-common-extensions python3-rosdep python3-vcstool python3-rosinstall-generator python3-osrf-pycommon
 ```
 
+## Python Dependencies
+
+Install compatible NumPy and OpenCV versions for cv_bridge:
+
+```bash
+pip install 'numpy<2' 'opencv-python==4.9.0.80'
+```
+
+**Why these versions?**
+- `numpy<2`: cv_bridge (compiled with pybind11 2.9.1) requires NumPy 1.x
+- `opencv-python==4.9.0.80`: Latest version compatible with NumPy 1.x
+- NumPy 1.26.4 + OpenCV 4.9.0 is the tested stable combination for ROS 2 Humble
+
 ## Clone Dependencies
 
 Navigate to the source directory:

@@ -96,14 +96,11 @@ public:
         this->loop_timer = this->create_wall_timer(50ms, std::bind(&VisionNavigation::runner, this));
         this->param_timer = this->create_wall_timer(1s, std::bind(&VisionNavigation::param_callback, this));
 
-        RCLCPP_INFO(this->get_logger(), "Vision Navigation node started");
+        RCLCPP_INFO(this->get_logger(), "VISION-NAV → node started");
     }
 
 private:
     void load_parameter() {
-        // RC Parameter Initialization
-        this->rc_channels_default.fill(65535);
-
         auto throttle_param = this->get_parameter("vision.rc.throttle").as_integer_array();
         this->rc_throttle = { static_cast<int>(throttle_param[0]), static_cast<int>(throttle_param[1]) };
 
@@ -115,10 +112,8 @@ private:
         auto max_value_param = this->get_parameter("vision.rc.max_value").as_integer_array();
         this->max_rc_value = { static_cast<int>(max_value_param[0]), static_cast<int>(max_value_param[1]) };
 
-        // Docking Timer Parameter Initialization
         this->dock_duration = this->get_parameter("vision.timer.docking").as_double();
 
-        // PID Parameter Initialization
         double yaw_kp = this->get_parameter("vision.pid.yaw.kp").as_double();
         double yaw_ki = this->get_parameter("vision.pid.yaw.ki").as_double();
         double yaw_kd = this->get_parameter("vision.pid.yaw.kd").as_double();
@@ -130,7 +125,7 @@ private:
 
     void param_callback() {
         this->load_parameter();
-        RCLCPP_INFO(this->get_logger(), "VISION-NAV → Parameters Reloaded!");
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "VISION-NAV → Parameters Reloaded!");
     }
 
     void mode_callback(const std_msgs::msg::Bool::SharedPtr msg) {
@@ -202,13 +197,12 @@ private:
 
     void override_control(int yaw, int pitch, int throttle, int lateral) {
         mavros_msgs::msg::OverrideRCIn rc_override;
-        rc_override.channels = this->rc_channels_default;
+        rc_override.channels.fill(mavros_msgs::msg::OverrideRCIn::CHAN_NOCHANGE);
         rc_override.channels[0] = static_cast<uint16_t>(yaw);
         rc_override.channels[1] = static_cast<uint16_t>(pitch);
         rc_override.channels[2] = static_cast<uint16_t>(throttle);
         rc_override.channels[3] = static_cast<uint16_t>(lateral);
         this->rc_override_pub->publish(rc_override);
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "VISION-NAV → RC Y:%d T:%d", yaw, throttle);
     }
 
     void runner() {
@@ -304,7 +298,6 @@ private:
     std::mutex mutex;
 
     // Variable Declaration
-    std::array<uint16_t, 18> rc_channels_default;
     std::vector<int> rc_throttle;
     std::vector<int> min_rc_value;
     int mid_rc_value;

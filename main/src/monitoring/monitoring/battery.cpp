@@ -24,7 +24,7 @@ public:
         // Rate Timer Initialization
         this->loop_timer = this->create_wall_timer(1s, std::bind(&BatteryNode::data_publisher, this));
 
-        RCLCPP_INFO(this->get_logger(), "Battery node started");
+        RCLCPP_INFO(this->get_logger(), "MONITORING → Battery node started");
     }
 
 private:
@@ -56,7 +56,7 @@ private:
             auto message = std_msgs::msg::Float32();
             message.data = current_battery;
             this->battery_pub->publish(message);
-            RCLCPP_INFO(this->get_logger(), "Battery: %.2f %%", current_battery);
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "MONITORING → Battery: %.2f %%", current_battery);
         }
     }
 

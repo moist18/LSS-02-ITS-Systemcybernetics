@@ -51,7 +51,7 @@ public:
         this->loop_timer = this->create_wall_timer(20ms, std::bind(&GPSCompassPlannerNode::runner, this));
         this->param_timer = this->create_wall_timer(1s, std::bind(&GPSCompassPlannerNode::param_callback, this));
 
-        RCLCPP_INFO(this->get_logger(), "GPS Compass Planner node started");
+        RCLCPP_INFO(this->get_logger(), "PLANNER → node started");
     }
 
 private:
@@ -65,7 +65,7 @@ private:
 
     void param_callback() {
         this->load_parameter();
-        RCLCPP_INFO(this->get_logger(), "PLANNER → Parameters Reloaded!");
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "PLANNER → Parameters Reloaded!");
     }
 
     void state_callback(const mavros_msgs::msg::State::SharedPtr msg) {
@@ -193,11 +193,13 @@ private:
 
             if (elapsed_time >= phase_duration) {
                 this->gps_navigation();
+                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 0: Floating Ball - GPS");
             } else {
                 this->vision_navigation();
+                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 0: Floating Ball - Vision");
             }
         } catch (const std::exception& e) {
-            RCLCPP_ERROR(this->get_logger(), "PLANNER: Error getting phase duration for waypoint 0: %s", e.what());
+            RCLCPP_ERROR(this->get_logger(), "PLANNER → Error getting phase duration for waypoint 0: %s", e.what());
         }
     }
 
@@ -205,6 +207,7 @@ private:
         // Waypoint 1: Compass → Vision (with timer) → GPS
         if (!this->compass_success) {
             this->compass_navigation();
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 1: Floating Ball - Compass");
         } else {
             if (this->nav_start_time.seconds() == 0) {
                 this->nav_start_time = this->now();
@@ -216,11 +219,13 @@ private:
 
                 if (elapsed_time >= phase_duration) {
                     this->gps_navigation();
+                    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 1: Floating Ball - GPS");
                 } else {
                     this->vision_navigation();
+                    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 1: Floating Ball - Vision");
                 }
             } catch (const std::exception& e) {
-                RCLCPP_ERROR(this->get_logger(), "PLANNER: Error getting phase duration for waypoint 1: %s", e.what());
+                RCLCPP_ERROR(this->get_logger(), "PLANNER → Error getting phase duration for waypoint 1: %s", e.what());
             }
         }
     }
@@ -229,6 +234,7 @@ private:
         // Waypoint 2: Compass → Vision (with timer) → Swap buoy → Surface Imaging (Vision until surface) → Vision (reverse timer) → GPS
         if (!this->compass_success) {
             this->compass_navigation();
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 2: Floating Ball - Compass");
         } else {
             if (this->nav_start_time.seconds() == 0) {
                 this->nav_start_time = this->now();
@@ -248,6 +254,7 @@ private:
 
                     if (!this->is_surface) {
                         this->vision_navigation();
+                        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 2: Surface Imaging - Vision");
                     } else {
                         if (!this->reverse_started) {
                             this->reverse_started = true;
@@ -260,15 +267,18 @@ private:
                         if (reverse_elapsed_time >= reverse_phase_duration) {
                             this->mission = "Underwater Imaging";
                             this->gps_navigation();
+                            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 2: Underwater Imaging - GPS");
                         } else {
                             this->vision_navigation();
+                            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 2: Surface Imaging - Vision");
                         }
                     }
                 } else {
                     this->vision_navigation();
+                    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 2: Floating Ball - Vision");
                 }
             } catch (const std::exception& e) {
-                RCLCPP_ERROR(this->get_logger(), "PLANNER: Error getting phase duration for waypoint 2: %s", e.what());
+                RCLCPP_ERROR(this->get_logger(), "PLANNER → Error getting phase duration for waypoint 2: %s", e.what());
             }
         }
     }
@@ -277,6 +287,7 @@ private:
         // Waypoint 3: Compass → Underwater Imaging (Vision until underwater complete) → Vision (reverse timer) → GPS
         if (!this->compass_success) {
             this->compass_navigation();
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 3: Underwater Imaging - Compass");
         } else {
             if (!this->is_underwater) {
                 this->vision_navigation();
@@ -291,11 +302,13 @@ private:
 
                     if (elapsed_time >= phase_duration) {
                         this->gps_navigation();
+                        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 3: Underwater Imaging - GPS");
                     } else {
                         this->vision_navigation();
+                        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 3: Underwater Imaging - Vision");
                     }
                 } catch (const std::exception& e) {
-                    RCLCPP_ERROR(this->get_logger(), "PLANNER: Error getting phase duration for waypoint 3: %s", e.what());
+                    RCLCPP_ERROR(this->get_logger(), "PLANNER → Error getting phase duration for waypoint 3: %s", e.what());
                 }
             }
         }
@@ -305,19 +318,20 @@ private:
         // Waypoint 4: Docking - GPS only
         this->mission = "Docking";
         this->gps_navigation();
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 4: Docking - GPS");
     }
 
     void handle_waypoint_5(double current_time) {
         // Waypoint 5: Docking - Vision navigation (road to finish)
         this->vision_navigation();
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 1000, "PLANNER → Road to Finish!");
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 5: Road to Finish!");
     }
 
     void mission_planner() {
         std::lock_guard<std::mutex> lock(this->mutex);
 
         if (!this->auto_mode) {
-            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "RC AUTO mode is disabled, waiting for RC AUTO mode...");
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "PLANNER → RC AUTO mode is disabled, waiting for RC AUTO mode...");
             return;
         }
 

@@ -62,20 +62,18 @@ public:
 
         // Rate Timer Initialization
         this->loop_timer = this->create_wall_timer(20ms, std::bind(&RemoteNode::read_and_publish, this));
-        RCLCPP_INFO(this->get_logger(), "Remote node started");
+        RCLCPP_INFO(this->get_logger(), "REMOTE → node started");
     }
 
 private:
     void load_parameter() {
         this->port = this->get_parameter("arduino.port").as_string();
         this->baudrate = this->get_parameter("arduino.baudrate").as_int();
-
-        RCLCPP_INFO(get_logger(), "Parameters loaded - Port: %s, Baudrate: %d", this->port.c_str(), this->baudrate);
     }
 
     void param_callback() {
         load_parameter();
-        RCLCPP_INFO(this->get_logger(), "REMOTE → Parameters Reloaded!");
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 5000, "REMOTE → Parameters Reloaded!");
     }
 
     void global_pos_callback(const sensor_msgs::msg::NavSatFix::SharedPtr msg) {
