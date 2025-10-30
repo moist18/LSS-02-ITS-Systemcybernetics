@@ -12,7 +12,10 @@ def generate_launch_description():
                     FindPackageShare('mavros'), 'launch', 'apm.launch'
                 ])
             ]),
-            launch_arguments={'fcu_url': '/dev/ttyUSB0:57600'}.items()
+            launch_arguments={
+                'fcu_url': '/dev/ttyACM0:57600',
+                'gcs_url': 'tcp-l://0.0.0.0:5760'
+            }.items()
         ),
         
         TimerAction(

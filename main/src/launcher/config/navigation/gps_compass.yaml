@@ -65,17 +65,9 @@
           "3": 180.0
 
       rc:
-        min_value: 1300
+        min_value: 1350
         mid_value: 1500
-        max_value: 1700
-
-      pid:
-        yaw:
-          kp: 3.0
-          ki: 0.0
-          kd: 0.3
-          min_output: -1.0
-          max_output: 1.0
+        max_value: 1650
 
       tolerance: 10.0
 

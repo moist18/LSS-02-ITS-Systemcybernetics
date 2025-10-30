@@ -285,7 +285,7 @@ class VisionNode(Node):
 
                 # Apply visualization and get raw yaw data
                 if result:
-                    # frame = result.plot()  # Competition (optional)
+                    frame = result.plot()  # Competition (optional)
                     if self.vis and hasattr(result, 'boxes'):
                         frame, raw_yaw, _ = self.vis.processor(
                             frame,
@@ -305,36 +305,33 @@ class VisionNode(Node):
                         )
 
                 # Debug: Show processed image
-                cv2.imshow('Vision Cam', frame)
-                cv2.waitKey(1)
-
-                # Publish processed image
+                # cv2.imshow('Vision Cam', frame)
+                # cv2.waitKey(1)
+                
                 img_msg = self.bridge.cv2_to_imgmsg(frame, 'bgr8')
-                self.navigation_vision_pub.publish(img_msg)
-
-                # Surface imaging logic
                 self._handle_surface_imaging(img_msg)
+                # self.navigation_vision_pub.publish(img_msg)
 
             except IndexError:
                 # No processed results available, use input frame
 
                 # Debug: Show processed image
-                cv2.imshow('Vision Cam', input_frame)
-                cv2.waitKey(1)
+                # cv2.imshow('Vision Cam', input_frame)
+                # cv2.waitKey(1)
 
                 img_msg = self.bridge.cv2_to_imgmsg(input_frame, 'bgr8')
-                self.navigation_vision_pub.publish(img_msg)
                 self._handle_surface_imaging(img_msg)
+                # self.navigation_vision_pub.publish(img_msg)
         else:
             # No processed results available, use input frame
 
             # Debug: Show processed image
-            cv2.imshow('Vision Cam', input_frame)
-            cv2.waitKey(1)
+            # cv2.imshow('Vision Cam', input_frame)
+            # cv2.waitKey(1)
 
             img_msg = self.bridge.cv2_to_imgmsg(input_frame, 'bgr8')
-            self.navigation_vision_pub.publish(img_msg)
             self._handle_surface_imaging(img_msg)
+            # self.navigation_vision_pub.publish(img_msg)
 
         # Publish detection results for navigation node
         self.obj_detection_pub.publish(Bool(data=objects_detected))

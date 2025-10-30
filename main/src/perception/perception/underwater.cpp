@@ -129,8 +129,8 @@ private:
             processor(frame);
 
             // Debug: Show underwater camera feed
-            cv::imshow("Underwater Camera", frame);
-            cv::waitKey(1);
+            // cv::imshow("Underwater Camera", frame);
+            // cv::waitKey(1);
         }
 
         {

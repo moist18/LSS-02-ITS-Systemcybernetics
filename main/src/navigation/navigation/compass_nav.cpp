@@ -14,48 +14,6 @@
 
 using namespace std::chrono_literals;
 
-class PID {
-public:
-    PID(rclcpp::Clock::SharedPtr clock, double kp, double ki, double kd, double min_output, double max_output)
-        : clock(clock)
-        , kp(kp)
-        , ki(ki)
-        , kd(kd)
-        , min_output(min_output)
-        , max_output(max_output) {
-        reset();
-    }
-
-    void reset() {
-        auto current_time = this->clock->now().nanoseconds() / 1e9;
-        this->prev_time = current_time;
-        this->prev_error = 0.0;
-        this->integral = 0.0;
-    }
-
-    double compute(double error) {
-        auto current_time = this->clock->now().nanoseconds() / 1e9;
-        double dt = std::max(current_time - this->prev_time, 1e-6);
-
-        this->integral += error * dt;
-        double derivative = (error - this->prev_error) / dt;
-
-        double output = this->kp * error + this->ki * this->integral + this->kd * derivative;
-        output = std::max(this->min_output, std::min(this->max_output, output));
-
-        this->prev_error = error;
-        this->prev_time = current_time;
-
-        return output;
-    }
-
-private:
-    rclcpp::Clock::SharedPtr clock;
-    double kp, ki, kd;
-    double min_output, max_output;
-    double prev_time, prev_error, integral;
-};
-
 class CompassNavigation : public rclcpp::Node {
 public:
     CompassNavigation()
@@ -81,13 +39,6 @@ public:
         this->declare_parameter<int>("compass.rc.mid_value", 1500);
         this->declare_parameter<int>("compass.rc.max_value", 1700);
         this->declare_parameter<double>("compass.tolerance", 10.0);
-
-        // PID Parameter Declaration
-        this->declare_parameter<double>("compass.pid.yaw.kp", 3.0);
-        this->declare_parameter<double>("compass.pid.yaw.ki", 0.0);
-        this->declare_parameter<double>("compass.pid.yaw.kd", 0.3);
-        this->declare_parameter<double>("compass.pid.yaw.min_output", -1.0);
-        this->declare_parameter<double>("compass.pid.yaw.max_output", 1.0);
 
         // Parameter Setup
         this->load_parameter();
@@ -136,16 +87,6 @@ private:
         this->rc_mid_value = this->get_parameter("compass.rc.mid_value").as_int();
         this->rc_max_value = this->get_parameter("compass.rc.max_value").as_int();
         this->heading_tolerance = this->get_parameter("compass.tolerance").as_double();
-
-        // PID Parameter Initialization
-        double yaw_kp = this->get_parameter("compass.pid.yaw.kp").as_double();
-        double yaw_ki = this->get_parameter("compass.pid.yaw.ki").as_double();
-        double yaw_kd = this->get_parameter("compass.pid.yaw.kd").as_double();
-        double yaw_min = this->get_parameter("compass.pid.yaw.min_output").as_double();
-        double yaw_max = this->get_parameter("compass.pid.yaw.max_output").as_double();
-
-        // Initialize PID controller
-        this->yaw_pid = std::make_unique<PID>(this->get_clock(), yaw_kp, yaw_ki, yaw_kd, yaw_min, yaw_max);
     }
 
     void param_callback() {
@@ -185,9 +126,6 @@ private:
         std::lock_guard<std::mutex> lock(this->mutex);
         this->current_waypoint = msg->data;
         this->compass_success = false;
-        if (this->yaw_pid) {
-            this->yaw_pid->reset();
-        }
     }
 
     void trajectory_callback(const std_msgs::msg::String::SharedPtr msg) {
@@ -199,9 +137,6 @@ private:
         if (msg->data) {
             std::lock_guard<std::mutex> lock(this->mutex);
             this->compass_success = false;
-            if (this->yaw_pid) {
-                this->yaw_pid->reset();
-            }
             RCLCPP_INFO(this->get_logger(), "COMPASS-NAV → Successfully Reset Mission!");
         }
     }
@@ -227,7 +162,6 @@ private:
         rc_override.channels[2] = static_cast<uint16_t>(throttle);
         rc_override.channels[3] = static_cast<uint16_t>(lateral);
         this->rc_override_pub->publish(rc_override);
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "COMPASS-NAV → RC Y:%d", yaw);
     }
 
     bool compass_navigation(double target_heading, double tolerance) {
@@ -238,27 +172,23 @@ private:
 
         double error = this->get_heading_error(target_heading);
 
+        // Check if target reached
         if (fabs(error) <= tolerance) {
-            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "COMPASS-NAV → Target heading reached! Current: %.1f°", this->current_heading);
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "COMPASS-NAV → Target heading reached! Current: %.1f°, Target: %.1f°", this->current_heading, target_heading);
             return true;
         }
 
-        // Compute PID output (-1.0 to 1.0)
-        double yaw_control = this->yaw_pid->compute(error);
-
-        // Map PID output to RC PWM values
         int yaw_output;
-        
-        if (yaw_control > 0.0) {
-            // Turn right: 1500 to max
-            yaw_output = this->rc_mid_value + static_cast<int>(yaw_control * (this->rc_max_value - this->rc_mid_value));
+        if (error > 0.0) {
+            // Turn right
+            yaw_output = this->rc_max_value;
         } else {
-            // Turn left: min to 1500
-            yaw_output = this->rc_mid_value + static_cast<int>(yaw_control * (this->rc_mid_value - this->rc_min_value));
+            // Turn left
+            yaw_output = this->rc_min_value;
         }
 
-        // Clamp to operational limits
-        yaw_output = std::max(this->rc_min_value, std::min(this->rc_max_value, yaw_output));
+        // Debug logging
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "COMPASS-NAV → Current: %.1f° | Target: %.1f° | Error: %.1f° | RC: %d", this->current_heading, target_heading, error, yaw_output);
 
         // Publish RC override
         this->override_control(yaw_output, 1500, 1500, 1500);
@@ -316,9 +246,6 @@ private:
 
     // Mutex Declaration
     std::mutex mutex;
-
-    // PID Controller
-    std::unique_ptr<PID> yaw_pid;
 
     // Variable Declaration
     std::map<std::string, double> target_heading_A;
