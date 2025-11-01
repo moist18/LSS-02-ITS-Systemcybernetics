@@ -26,7 +26,7 @@ def generate_launch_description():
                         get_package_share_directory('launcher'),
                         'config',
                         'navigation',
-                        'gps_compass.yaml'
+                        'gps_compass6.yaml'
                     )
 
     perception_param = os.path.join(
@@ -62,7 +62,7 @@ def generate_launch_description():
 
         Node(
             package='mission',
-            executable='gps_compass_planner',
+            executable='gps_compass6_planner',
             name='planner_node',
             output='screen',
             emulate_tty=True,

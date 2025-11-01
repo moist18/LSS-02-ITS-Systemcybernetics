@@ -231,8 +231,13 @@ private:
     }
 
     void handle_waypoint_2(double current_time) {
-        // Waypoint 2: Compass → Vision (with timer) → Swap buoy → Surface Imaging (Vision until surface) → Vision (reverse timer) → GPS
+        // Waypoint 2: Compass → Swap buoy → Vision (with timer) → GPS
         if (!this->compass_success) {
+            if (!this->is_swap) {
+                this->is_swap = true;
+                this->swap_buoy_colors();
+            }
+
             this->compass_navigation();
             RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 2: Floating Ball - Compass");
         } else {
@@ -240,39 +245,14 @@ private:
                 this->nav_start_time = this->now();
             }
 
-            if (!this->is_swap) {
-                this->is_swap = true;
-                this->swap_buoy_colors();
-            }
-
             try {
-                double vision_phase_duration = this->get_phase_duration(std::to_string(this->current_waypoint));
-                double vision_elapsed_time = current_time - this->nav_start_time.seconds();
+                double phase_duration = this->get_phase_duration(std::to_string(this->current_waypoint));
+                double elapsed_time = current_time - this->nav_start_time.seconds();
 
-                if (vision_elapsed_time >= vision_phase_duration) {
+                if (elapsed_time >= phase_duration) {
                     this->mission = "Surface Imaging";
-
-                    if (!this->is_surface) {
-                        this->vision_navigation();
-                        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 2: Surface Imaging - Vision");
-                    } else {
-                        if (!this->reverse_started) {
-                            this->reverse_started = true;
-                            this->reverse_start_time = this->now();
-                        }
-
-                        double reverse_phase_duration = this->get_phase_duration("reverse");
-                        double reverse_elapsed_time = current_time - this->reverse_start_time.seconds();
-
-                        if (reverse_elapsed_time >= reverse_phase_duration) {
-                            this->mission = "Underwater Imaging";
-                            this->gps_navigation();
-                            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 2: Underwater Imaging - GPS");
-                        } else {
-                            this->vision_navigation();
-                            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 2: Surface Imaging - Vision");
-                        }
-                    }
+                    this->gps_navigation();
+                    RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 2: Surface Imaging - GPS");
                 } else {
                     this->vision_navigation();
                     RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 2: Floating Ball - Vision");
@@ -284,13 +264,14 @@ private:
     }
 
     void handle_waypoint_3(double current_time) {
-        // Waypoint 3: Compass → Underwater Imaging (Vision until underwater complete) → Vision (reverse timer) → GPS
+        // Waypoint 3: Compass → Vision (with timer) → Surface Imaging (Vision until surface) → Vision (reverse timer) → GPS
         if (!this->compass_success) {
             this->compass_navigation();
-            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 3: Underwater Imaging - Compass");
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 3: Surface Imaging - Compass");
         } else {
-            if (!this->is_underwater) {
+            if (!this->is_surface) {
                 this->vision_navigation();
+                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 3: Surface Imaging - Vision");
             } else {
                 if (this->nav_start_time.seconds() == 0) {
                     this->nav_start_time = this->now();
@@ -301,11 +282,12 @@ private:
                     double elapsed_time = current_time - this->nav_start_time.seconds();
 
                     if (elapsed_time >= phase_duration) {
+                        this->mission = "Underwater Imaging";
                         this->gps_navigation();
                         RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 3: Underwater Imaging - GPS");
                     } else {
                         this->vision_navigation();
-                        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 3: Underwater Imaging - Vision");
+                        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 3: Surface Imaging - Vision");
                     }
                 } catch (const std::exception& e) {
                     RCLCPP_ERROR(this->get_logger(), "PLANNER → Error getting phase duration for waypoint 3: %s", e.what());
@@ -315,16 +297,48 @@ private:
     }
 
     void handle_waypoint_4(double current_time) {
-        // Waypoint 4: Docking - GPS only
-        this->mission = "Docking";
-        this->gps_navigation();
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 4: Docking - GPS");
+        // Waypoint 4: Compass → Underwater Imaging (Vision until underwater complete) → Vision (reverse timer) → GPS
+        if (!this->compass_success) {
+            this->compass_navigation();
+            RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 4: Underwater Imaging - Compass");
+        } else {
+            if (!this->is_underwater) {
+                this->vision_navigation();
+                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 4: Underwater Imaging - Vision");
+            } else {
+                if (this->nav_start_time.seconds() == 0) {
+                    this->nav_start_time = this->now();
+                }
+
+                try {
+                    double phase_duration = this->get_phase_duration("reverse");
+                    double elapsed_time = current_time - this->nav_start_time.seconds();
+
+                    if (elapsed_time >= phase_duration) {
+                        this->mission = "Docking";
+                        this->gps_navigation();
+                        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 4: Docking - GPS");
+                    } else {
+                        this->vision_navigation();
+                        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 4: Underwater Imaging - Vision");
+                    }
+                } catch (const std::exception& e) {
+                    RCLCPP_ERROR(this->get_logger(), "PLANNER → Error getting phase duration for waypoint 4: %s", e.what());
+                }
+            }
+        }
     }
 
     void handle_waypoint_5(double current_time) {
-        // Waypoint 5: Docking - Vision navigation (road to finish)
+        // Waypoint 5: Docking - GPS only
+        this->gps_navigation();
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 5: Docking - GPS");
+    }
+
+    void handle_waypoint_6(double current_time) {
+        // Waypoint 6: Docking - Vision navigation (road to finish)
         this->vision_navigation();
-        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 5: Road to Finish!");
+        RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 6: Road to Finish!");
     }
 
     void mission_planner() {
@@ -356,6 +370,9 @@ private:
             break;
         case 5:
             this->handle_waypoint_5(current_time);
+            break;
+        case 6:
+            this->handle_waypoint_6(current_time);
             break;
         default:
             RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Invalid waypoint: %d", this->current_waypoint);
@@ -438,7 +455,6 @@ private:
     // Variable Declaration
     std::mutex mutex;
     rclcpp::Time nav_start_time;
-    rclcpp::Time reverse_start_time;
     mavros_msgs::msg::State current_state;
     std::map<std::string, double> phase_duration;
     std::string mission;
@@ -457,7 +473,6 @@ private:
     bool is_swap = false;
     bool is_surface = false;
     bool is_underwater = false;
-    bool reverse_started = false;
     int current_waypoint = 0;
 };
 

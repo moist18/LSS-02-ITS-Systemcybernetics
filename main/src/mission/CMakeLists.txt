@@ -23,30 +23,38 @@ set(CMAKE_PREFIX_PATH "${CMAKE_PREFIX_PATH};/home/ubuntu/ASV-2025/libs/install")
 find_package(mavros_msgs REQUIRED)
 
 # C++ executables
-add_executable(gps_compass_planner ${PROJECT_NAME}/gps_compass_planner.cpp)
-ament_target_dependencies(gps_compass_planner 
-  rclcpp 
+add_executable(gps_compass5_planner ${PROJECT_NAME}/gps_compass5_planner.cpp)
+ament_target_dependencies(gps_compass5_planner
+  rclcpp
+  std_msgs
+  mavros_msgs
+)
+
+add_executable(gps_compass6_planner ${PROJECT_NAME}/gps_compass6_planner.cpp)
+ament_target_dependencies(gps_compass6_planner
+  rclcpp
   std_msgs
   mavros_msgs
 )
 
 add_executable(gps_rtk_planner ${PROJECT_NAME}/gps_rtk_planner.cpp)
-ament_target_dependencies(gps_rtk_planner 
-  rclcpp 
+ament_target_dependencies(gps_rtk_planner
+  rclcpp
   std_msgs
   mavros_msgs
 )
 
 add_executable(gps_vision_planner ${PROJECT_NAME}/gps_vision_planner.cpp)
-ament_target_dependencies(gps_vision_planner 
-  rclcpp 
+ament_target_dependencies(gps_vision_planner
+  rclcpp
   std_msgs
   mavros_msgs
 )
 
 # Install C++ executables
 install(TARGETS
-  gps_compass_planner
+  gps_compass5_planner
+  gps_compass6_planner
   gps_rtk_planner
   gps_vision_planner
   DESTINATION lib/${PROJECT_NAME}
