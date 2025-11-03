@@ -163,9 +163,9 @@ private:
     }
 
     void swap_buoy_colors() {
-        std::lock_guard<std::mutex> lock(this->mutex);
-        std::swap(this->left_buoy, this->right_buoy);
-        RCLCPP_INFO(this->get_logger(), "L-Buoy: '%s', R-Buoy: '%s'", this->left_buoy.c_str(), this->right_buoy.c_str());
+        this->left_buoy = this->default_right;
+        this->right_buoy = this->default_left;
+        RCLCPP_INFO(this->get_logger(), "PLANNER → L-Buoy: '%s', R-Buoy: '%s'", this->left_buoy.c_str(), this->right_buoy.c_str());
     }
 
     void handle_waypoint_0(double current_time) {

@@ -45,13 +45,6 @@ def generate_launch_description():
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([
                 PathJoinSubstitution([
-                    FindPackageShare('launcher'), 'launch', 'mavros.launch.py'
-                ])
-            ])
-        ),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource([
-                PathJoinSubstitution([
                     FindPackageShare('launcher'), 'launch', 'rosbridge.launch.py'
                 ])
             ])

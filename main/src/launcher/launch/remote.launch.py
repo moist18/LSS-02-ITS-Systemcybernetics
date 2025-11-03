@@ -60,14 +60,14 @@ def generate_launch_description():
         #     emulate_tty=True
         # ),
         
-        Node(
-            package='perception',
-            executable='vision.py',
-            name='vision_node',
-            output='screen',
-            emulate_tty=True,
-            parameters=[perception_param]
-        ),
+        # Node(
+        #     package='perception',
+        #     executable='vision.py',
+        #     name='vision_node',
+        #     output='screen',
+        #     emulate_tty=True,
+        #     parameters=[perception_param]
+        # ),
         
         
         # SENSOR PACKAGE

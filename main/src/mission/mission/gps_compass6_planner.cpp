@@ -11,10 +11,10 @@
 
 using namespace std::chrono_literals;
 
-class GPSCompassPlannerNode : public rclcpp::Node {
+class PlannerNode : public rclcpp::Node {
 public:
-    GPSCompassPlannerNode()
-        : Node("gps_compass_planner_node")
+    PlannerNode()
+        : Node("planner_node")
         , nav_start_time(rclcpp::Time()) {
 
         // Parameter Declaration
@@ -27,16 +27,16 @@ public:
         this->load_parameter();
 
         // Subscriber Initialization
-        this->state_sub = this->create_subscription<mavros_msgs::msg::State>("/mavros/state", rclcpp::SensorDataQoS(), std::bind(&GPSCompassPlannerNode::state_callback, this, std::placeholders::_1));
-        this->mode_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&GPSCompassPlannerNode::mode_callback, this, std::placeholders::_1));
-        this->curr_wp_sub = this->create_subscription<std_msgs::msg::Int32>("/robot/position/waypoint", rclcpp::ServicesQoS(), std::bind(&GPSCompassPlannerNode::curr_wp_callback, this, std::placeholders::_1));
-        this->compass_success_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/compass/success", rclcpp::ServicesQoS(), std::bind(&GPSCompassPlannerNode::compass_success_callback, this, std::placeholders::_1));
-        this->left_buoy_sub = this->create_subscription<std_msgs::msg::String>("/detect/left_buoy", rclcpp::ServicesQoS(), std::bind(&GPSCompassPlannerNode::left_buoy_callback, this, std::placeholders::_1));
-        this->right_buoy_sub = this->create_subscription<std_msgs::msg::String>("/detect/right_buoy", rclcpp::ServicesQoS(), std::bind(&GPSCompassPlannerNode::right_buoy_callback, this, std::placeholders::_1));
-        this->trajectory_sub = this->create_subscription<std_msgs::msg::String>("/robot/trajectory", rclcpp::ServicesQoS(), std::bind(&GPSCompassPlannerNode::trajectory_callback, this, std::placeholders::_1));
-        this->surface_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mission/surface", rclcpp::ServicesQoS(), std::bind(&GPSCompassPlannerNode::surface_callback, this, std::placeholders::_1));
-        this->underwater_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mission/underwater", rclcpp::ServicesQoS(), std::bind(&GPSCompassPlannerNode::underwater_callback, this, std::placeholders::_1));
-        this->reset_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/mission/reset", rclcpp::ServicesQoS(), std::bind(&GPSCompassPlannerNode::reset_mission_callback, this, std::placeholders::_1));
+        this->state_sub = this->create_subscription<mavros_msgs::msg::State>("/mavros/state", rclcpp::SensorDataQoS(), std::bind(&PlannerNode::state_callback, this, std::placeholders::_1));
+        this->mode_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&PlannerNode::mode_callback, this, std::placeholders::_1));
+        this->curr_wp_sub = this->create_subscription<std_msgs::msg::Int32>("/robot/position/waypoint", rclcpp::ServicesQoS(), std::bind(&PlannerNode::curr_wp_callback, this, std::placeholders::_1));
+        this->compass_success_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/compass/success", rclcpp::ServicesQoS(), std::bind(&PlannerNode::compass_success_callback, this, std::placeholders::_1));
+        this->left_buoy_sub = this->create_subscription<std_msgs::msg::String>("/detect/left_buoy", rclcpp::ServicesQoS(), std::bind(&PlannerNode::left_buoy_callback, this, std::placeholders::_1));
+        this->right_buoy_sub = this->create_subscription<std_msgs::msg::String>("/detect/right_buoy", rclcpp::ServicesQoS(), std::bind(&PlannerNode::right_buoy_callback, this, std::placeholders::_1));
+        this->trajectory_sub = this->create_subscription<std_msgs::msg::String>("/robot/trajectory", rclcpp::ServicesQoS(), std::bind(&PlannerNode::trajectory_callback, this, std::placeholders::_1));
+        this->surface_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mission/surface", rclcpp::ServicesQoS(), std::bind(&PlannerNode::surface_callback, this, std::placeholders::_1));
+        this->underwater_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mission/underwater", rclcpp::ServicesQoS(), std::bind(&PlannerNode::underwater_callback, this, std::placeholders::_1));
+        this->reset_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/mission/reset", rclcpp::ServicesQoS(), std::bind(&PlannerNode::reset_mission_callback, this, std::placeholders::_1));
 
         // Publisher Initialization
         this->setmode_pub = this->create_publisher<std_msgs::msg::String>("/robot/setmode", rclcpp::ServicesQoS());
@@ -48,8 +48,8 @@ public:
         this->right_buoy_pub = this->create_publisher<std_msgs::msg::String>("/detect/right_buoy", rclcpp::ServicesQoS());
 
         // Rate Timer Initialization
-        this->loop_timer = this->create_wall_timer(20ms, std::bind(&GPSCompassPlannerNode::runner, this));
-        this->param_timer = this->create_wall_timer(1s, std::bind(&GPSCompassPlannerNode::param_callback, this));
+        this->loop_timer = this->create_wall_timer(20ms, std::bind(&PlannerNode::runner, this));
+        this->param_timer = this->create_wall_timer(1s, std::bind(&PlannerNode::param_callback, this));
 
         RCLCPP_INFO(this->get_logger(), "PLANNER → node started");
     }
@@ -175,7 +175,8 @@ private:
     }
 
     void swap_buoy_colors() {
-        std::swap(this->left_buoy, this->right_buoy);
+        this->left_buoy = this->default_right;
+        this->right_buoy = this->default_left;
         RCLCPP_INFO(this->get_logger(), "PLANNER → L-Buoy: '%s', R-Buoy: '%s'", this->left_buoy.c_str(), this->right_buoy.c_str());
     }
 
@@ -478,7 +479,7 @@ private:
 
 int main(int argc, char** argv) {
     rclcpp::init(argc, argv);
-    auto node = std::make_shared<GPSCompassPlannerNode>();
+    auto node = std::make_shared<PlannerNode>();
 
     rclcpp::spin(node);
     rclcpp::shutdown();
