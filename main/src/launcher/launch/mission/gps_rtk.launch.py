@@ -2,11 +2,7 @@ import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
-from launch.substitutions import PathJoinSubstitution
 from launch_ros.actions import Node
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     mission_param = os.path.join(
@@ -42,15 +38,6 @@ def generate_launch_description():
                     )
 
     return LaunchDescription([
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource([
-                PathJoinSubstitution([
-                    FindPackageShare('launcher'), 'launch', 'rosbridge.launch.py'
-                ])
-            ])
-        ),
-
-
         # MISSION PACKAGE
         
         Node(
@@ -117,14 +104,14 @@ def generate_launch_description():
         
         # PERCEPTION PACKAGE
         
-        Node(
-            package='perception',
-            executable='underwater',
-            name='underwater_node',
-            output='screen',
-            emulate_tty=True,
-            parameters=[perception_param]
-        ),
+        # Node(
+        #     package='perception',
+        #     executable='underwater',
+        #     name='underwater_node',
+        #     output='screen',
+        #     emulate_tty=True,
+        #     parameters=[perception_param]
+        # ),
         Node(
             package='perception',
             executable='vision.py',
@@ -145,22 +132,22 @@ def generate_launch_description():
             emulate_tty=True,
             parameters=[sensor_param]
         ),
-        Node(
-            package='rplidar_ros',
-            executable='rplidar_node',
-            name='rplidar_node',
-            output='screen',
-            emulate_tty=True,
-            parameters=[sensor_param]
-        ),
-        Node(
-            package='sensor',
-            executable='rplidar',
-            name='lidar_node',
-            output='screen',
-            emulate_tty=True,
-            parameters=[sensor_param]
-        ),
+        # Node(
+        #     package='rplidar_ros',
+        #     executable='rplidar_node',
+        #     name='rplidar_node',
+        #     output='screen',
+        #     emulate_tty=True,
+        #     parameters=[sensor_param]
+        # ),
+        # Node(
+        #     package='sensor',
+        #     executable='rplidar',
+        #     name='lidar_node',
+        #     output='screen',
+        #     emulate_tty=True,
+        #     parameters=[sensor_param]
+        # ),
         Node(
             package='sensor',
             executable='state',

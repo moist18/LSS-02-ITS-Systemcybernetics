@@ -1,6 +1,6 @@
 from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, TimerAction, ExecuteProcess
-from launch.launch_description_sources import AnyLaunchDescriptionSource
+from launch.launch_description_sources import AnyLaunchDescriptionSource, PythonLaunchDescriptionSource
 from launch.substitutions import PathJoinSubstitution
 from launch_ros.substitutions import FindPackageShare
 
@@ -13,9 +13,17 @@ def generate_launch_description():
                 ])
             ]),
             launch_arguments={
-                'fcu_url': '/dev/ttyACM0:57600',
+                'fcu_url': '/dev/ttyACM0:115200',
                 'gcs_url': 'tcp-l://0.0.0.0:5760'
             }.items()
+        ),
+        
+        IncludeLaunchDescription(
+            PythonLaunchDescriptionSource([
+                PathJoinSubstitution([
+                    FindPackageShare('launcher'), 'launch', 'rosbridge.launch.py'
+                ])
+            ])
         ),
         
         TimerAction(
