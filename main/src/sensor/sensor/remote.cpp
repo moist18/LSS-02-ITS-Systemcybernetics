@@ -336,7 +336,7 @@ private:
             RCLCPP_INFO(this->get_logger(), "REMOTE → Attempting to set RC NEUTRAL mode...");
 
         } else if (part >= 1600 && this->prev_values["mode"] != "Auto") {
-            msg_str.data = "MANUAL";
+            msg_str.data = "GUIDED";
             this->setmode_pub->publish(msg_str);
 
             msg_bool.data = false;

@@ -6,7 +6,7 @@
       camera_device: 0          # Camera device ID (0=/dev/video0, 2=/dev/video2)
       width: 640                # Camera resolution width
       height: 480               # Camera resolution height
-      fps: 30                   # Camera frame rate
+      fps: 20                   # Camera frame rate
 
     vision:
       detection:
@@ -25,7 +25,7 @@
       camera_device: 2          # Camera device ID (0=/dev/video0, 2=/dev/video2)
       width: 640                # Camera resolution width
       height: 480               # Camera resolution height
-      fps: 30                   # Camera frame rate
+      fps: 20                   # Camera frame rate
 
 /recorder_node:
   ros__parameters:
