@@ -129,12 +129,13 @@
         min_value: [1000, 1300]
         mid_value: 1500
         max_value: [2000, 1700]
-      
+        steering_bias: -50
+
       pid:
         yaw:
-          kp: 0.8
-          ki: 0.08
-          kd: 0.00005
+          kp: 1.0
+          ki: 0.1
+          kd: 0.00001
           min_output: -1.0
           max_output: 1.0
 

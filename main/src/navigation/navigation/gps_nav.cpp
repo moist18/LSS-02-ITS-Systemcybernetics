@@ -205,23 +205,23 @@ private:
 
                 if (this->gps_control && !this->compass_control && !this->vision_control) {
                     gps_navigation(current_wp.latitude, current_wp.longitude, current_wp.altitude);
-                }
+                    
+                    if (distance < this->radius) {
+                        if (this->current_waypoint < static_cast<int>(waypoints.size()) - 1) {
+                            this->current_waypoint++;
+                            auto wp_msg = std_msgs::msg::Int32();
+                            wp_msg.data = this->current_waypoint;
+                            this->curr_wp_pub->publish(wp_msg);
 
-                if (distance < this->radius) {
-                    if (this->current_waypoint < static_cast<int>(waypoints.size()) - 1) {
-                        this->current_waypoint++;
-                        auto wp_msg = std_msgs::msg::Int32();
-                        wp_msg.data = this->current_waypoint;
-                        this->curr_wp_pub->publish(wp_msg);
-
-                        RCLCPP_INFO(get_logger(), "GPS-NAV → Reached Waypoint %d", this->current_waypoint);
-                        RCLCPP_INFO(get_logger(), "GPS-NAV → Moving to Waypoint %d", this->current_waypoint + 1);
-                    } else {
-                        this->is_finish = true;
-                        auto wp_msg = std_msgs::msg::Int32();
-                        wp_msg.data = this->current_waypoint + 1;
-                        this->curr_wp_pub->publish(wp_msg);
-                        RCLCPP_INFO(this->get_logger(), "GPS-NAV → Reached last waypoint: Moving to Dock");
+                            RCLCPP_INFO(get_logger(), "GPS-NAV → Reached Waypoint %d", this->current_waypoint);
+                            RCLCPP_INFO(get_logger(), "GPS-NAV → Moving to Waypoint %d", this->current_waypoint + 1);
+                        } else {
+                            this->is_finish = true;
+                            auto wp_msg = std_msgs::msg::Int32();
+                            wp_msg.data = this->current_waypoint + 1;
+                            this->curr_wp_pub->publish(wp_msg);
+                            RCLCPP_INFO(this->get_logger(), "GPS-NAV → Reached last waypoint: Moving to Dock");
+                        }
                     }
                 }
             }
