@@ -205,7 +205,7 @@ private:
 
                 if (this->gps_control && !this->compass_control && !this->vision_control) {
                     gps_navigation(current_wp.latitude, current_wp.longitude, current_wp.altitude);
-                    
+
                     if (distance < this->radius) {
                         if (this->current_waypoint < static_cast<int>(waypoints.size()) - 1) {
                             this->current_waypoint++;
