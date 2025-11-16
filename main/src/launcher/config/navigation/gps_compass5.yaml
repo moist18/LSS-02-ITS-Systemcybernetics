@@ -79,7 +79,7 @@
         min_value: [1000, 1300]
         mid_value: 1500
         max_value: [2000, 1700]
-        steering_bias: -50        # Bias ke kiri untuk kompensasi hull berat kanan (negative = kiri, positive = kanan)
+        steering_bias: [-70, -30]  # Bias ke kiri untuk kompensasi hull berat kanan (negative = kiri, positive = kanan)
 
       pid:
         yaw:

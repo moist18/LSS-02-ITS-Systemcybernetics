@@ -50,6 +50,7 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   ${PROJECT_NAME}/recorder.py
   ${PROJECT_NAME}/vision.py
+  ${PROJECT_NAME}/vision_recorder.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

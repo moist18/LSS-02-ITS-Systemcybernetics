@@ -62,7 +62,7 @@ public:
         this->declare_parameter<std::vector<int64_t>>("vision.rc.min_value", std::vector<int64_t> { 1000, 1200 });
         this->declare_parameter<int>("vision.rc.mid_value", 1500);
         this->declare_parameter<std::vector<int64_t>>("vision.rc.max_value", std::vector<int64_t> { 2000, 1800 });
-        this->declare_parameter<int>("vision.rc.steering_bias", 0);
+        this->declare_parameter<std::vector<int64_t>>("vision.rc.steering_bias", std::vector<int64_t> { 0, 0 });
 
         // Docking Timer Parameter Declaration
         this->declare_parameter<double>("vision.timer.docking", 5.0);
@@ -113,7 +113,8 @@ private:
         auto max_value_param = this->get_parameter("vision.rc.max_value").as_integer_array();
         this->max_rc_value = { static_cast<int>(max_value_param[0]), static_cast<int>(max_value_param[1]) };
 
-        this->steering_bias = this->get_parameter("vision.rc.steering_bias").as_int();
+        auto steering_bias_param = this->get_parameter("vision.rc.steering_bias").as_integer_array();
+        this->steering_bias = { static_cast<int>(steering_bias_param[0]), static_cast<int>(steering_bias_param[1]) };
 
         this->dock_duration = this->get_parameter("vision.timer.docking").as_double();
 
@@ -194,7 +195,7 @@ private:
 
     int calculate_rc_value(double pid_output) {
         int mission_index = (this->mission == "Floating Ball") ? 0 : 1;
-        int rc_value = this->mid_rc_value + pid_output * (this->max_rc_value[mission_index] - this->mid_rc_value) + this->steering_bias;
+        int rc_value = this->mid_rc_value + pid_output * (this->max_rc_value[mission_index] - this->mid_rc_value) + this->steering_bias[mission_index];
         return static_cast<int>(std::max(this->min_rc_value[mission_index], std::min(this->max_rc_value[mission_index], rc_value)));
     }
 
@@ -305,7 +306,7 @@ private:
     std::vector<int> min_rc_value;
     int mid_rc_value;
     std::vector<int> max_rc_value;
-    int steering_bias;
+    std::vector<int> steering_bias;
     std::unique_ptr<PID> pid_yaw;
 
     // Timer Variables

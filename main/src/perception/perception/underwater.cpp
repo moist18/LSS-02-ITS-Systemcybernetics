@@ -16,12 +16,14 @@ public:
         this->declare_parameter<int>("config.width", 640);
         this->declare_parameter<int>("config.height", 480);
         this->declare_parameter<int>("config.fps", 30);
+        this->declare_parameter<bool>("config.debug", true);
 
         // Parameter Setup
         this->camera_device = this->get_parameter("config.camera_device").as_int();
         this->WIDTH = this->get_parameter("config.width").as_int();
         this->HEIGHT = this->get_parameter("config.height").as_int();
         this->FPS = this->get_parameter("config.fps").as_int();
+        this->DEBUG = this->get_parameter("config.debug").as_bool();
 
         // Subscriber Initialization
         this->mode_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::mode_callback, this, std::placeholders::_1));
@@ -129,8 +131,10 @@ private:
             processor(frame);
 
             // Debug: Show underwater camera feed
-            // cv::imshow("Underwater Camera", frame);
-            // cv::waitKey(1);
+            if (this->DEBUG) {
+                cv::imshow("Underwater Camera", frame);
+                cv::waitKey(1);
+            }
         }
 
         {
@@ -166,6 +170,7 @@ private:
     int WIDTH;
     int HEIGHT;
     int FPS;
+    bool DEBUG;
     cv::VideoCapture cam;
     bool auto_mode = true;
     bool gps_control = false;

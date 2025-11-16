@@ -8,8 +8,7 @@ class BBoxVisualization():
     def processor (self, frame, fps, mission, docking, left_buoy, right_buoy, boxes, confs, clss, width, height, batas_bawah, batas_tengah, batas_atas):
         is_finish = False
         connector_midpoint = None
-        detected_cls = ''
-        yaw = 1500
+        yaw = batas_tengah
         
         max_area = {
             'blue_box': 0,
@@ -27,6 +26,14 @@ class BBoxVisualization():
             'red_buoy': None,
             'red_dock': None
         }
+        max_conf = {
+            'blue_box': 0,
+            'green_box': 0,
+            'green_buoy': 0,
+            'green_dock': 0,
+            'red_buoy': 0,
+            'red_dock': 0
+        }
         midpoints = {
             'blue_box': None,
             'green_box': None,
@@ -43,22 +50,17 @@ class BBoxVisualization():
             cls_name = self.cls_dict.get(cl, 'CLS{}'.format(cl))
             midpoint = (int((x1 + x2) / 2), int((y1 + y2) / 2))
             area = (x2 - x1) * (y2 - y1)
-            
+
             if cls_name in max_area and area > max_area[cls_name]:
                 max_area[cls_name] = area
                 max_bbox[cls_name] = (int(x1), int(y1), int(x2), int(y2))
+                max_conf[cls_name] = cf
                 midpoints[cls_name] = midpoint
-        
-        # Bounding boxes with the largest area
-        for cls_name, bbox in max_bbox.items():
-            if bbox is not None:
-                x1, y1, x2, y2 = bbox
-                detected_cls = cls_name
-        
+
         # Connection line and midpoint
-        if midpoints['green_buoy'] and midpoints['red_buoy']:
-            connector_midpoint = (int((midpoints['green_buoy'][0] + midpoints['red_buoy'][0]) / 2), 
-                                  int((midpoints['green_buoy'][1] + midpoints['red_buoy'][1]) / 2))
+        if midpoints[left_buoy] and midpoints[right_buoy]:
+            connector_midpoint = (int((midpoints[left_buoy][0] + midpoints[right_buoy][0]) / 2),
+                                  int((midpoints[left_buoy][1] + midpoints[right_buoy][1]) / 2))
         
         # Mission Handler
         if mission == "Floating Ball":
@@ -66,35 +68,35 @@ class BBoxVisualization():
                 a, b = connector_midpoint
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
 
-            elif detected_cls == left_buoy and midpoints[detected_cls] is not None:
-                a, b = midpoints[detected_cls]
+            elif midpoints[left_buoy] is not None:
+                a, b = midpoints[left_buoy]
                 yaw = batas_tengah + a * ((batas_tengah - batas_bawah) * (1/640))
 
-            elif detected_cls == right_buoy and midpoints[detected_cls] is not None:
-                a, b = midpoints[detected_cls]
+            elif midpoints[right_buoy] is not None:
+                a, b = midpoints[right_buoy]
                 yaw = batas_bawah + a * ((batas_tengah - batas_bawah) * (1/640))
                 
         # elif mission.endswith("Imaging"):
-        #     if detected_cls == "green_box":
-        #         a, b = midpoints[detected_cls]
+        #     if midpoints["green_box"] is not None:
+        #         a, b = midpoints["green_box"]
         #         yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
-        
+
         # SUBTITUTION OF 'mission.endswith("Imaging")' IF 'blue_box' CLASS EXIST
-        
+
         elif mission == "Surface Imaging":
-            if detected_cls == "green_box" and midpoints[detected_cls] is not None:
-                a, b = midpoints[detected_cls]
+            if midpoints["green_box"] is not None:
+                a, b = midpoints["green_box"]
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
 
         elif mission == "Underwater Imaging":
-            if detected_cls == "blue_box" and midpoints[detected_cls] is not None:
-                a, b = midpoints[detected_cls]
+            if midpoints["blue_box"] is not None:
+                a, b = midpoints["blue_box"]
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
 
         elif mission == "Docking":
             is_finish = True
-            if detected_cls == docking and midpoints[detected_cls] is not None:
-                a, b = midpoints[detected_cls]
+            if midpoints[docking] is not None:
+                a, b = midpoints[docking]
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
         
         return frame, yaw, is_finish

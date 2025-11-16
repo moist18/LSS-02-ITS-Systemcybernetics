@@ -23,8 +23,8 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
 from ultralytics import YOLO
-from perception.utils.novisual import BBoxVisualization  # Competition
-# from perception.utils.visual import BBoxVisualization  # Development
+# from perception.utils.novisual import BBoxVisualization  # Competition
+from perception.utils.visual import BBoxVisualization  # Development
 
 def optimize_rknn_model():
     # Set environment variables for NPU optimization
@@ -45,19 +45,24 @@ class VisionNode(Node):
         super().__init__('vision_node')
 
         # Vision Parameter Declaration
-        self.declare_parameter('model_path', f'{ROOT}/models/yolo11s_x640_model')
+        self.declare_parameter('model_path', f'{ROOT}/models/LESGO11s_x640_rknn_model')
         self.declare_parameter('config.camera_device', 0)
         self.declare_parameter('config.width', 640)
         self.declare_parameter('config.height', 480)
         self.declare_parameter('config.fps', 30)
-        self.declare_parameter('vision.detection.confidence', 0.65)
+        self.declare_parameter('config.debug', True)
+        
+        # Detection Parameter Declaration
+        self.declare_parameter('vision.detection.image_size', 640)
+        self.declare_parameter('vision.detection.confidence', 0.5)
         self.declare_parameter('vision.detection.iou_threshold', 0.5)
-        self.declare_parameter('vision.detection.image_size', 416)
+        self.declare_parameter('vision.detection.half', False)
+        self.declare_parameter('vision.detection.verbose', False)
 
         # RC Parameter Declaration
-        self.declare_parameter('vision.rc.min_value', [1000, 1200])
+        self.declare_parameter('vision.rc.min_value', [1000, 1300])
         self.declare_parameter('vision.rc.mid_value', 1500)
-        self.declare_parameter('vision.rc.max_value', [2000, 1800])
+        self.declare_parameter('vision.rc.max_value', [2000, 1700])
         
         # Parameter Setup
         self.load_parameter()
@@ -67,6 +72,7 @@ class VisionNode(Node):
         self.WIDTH = self.get_parameter('config.width').get_parameter_value().integer_value
         self.HEIGHT = self.get_parameter('config.height').get_parameter_value().integer_value
         self.FPS = self.get_parameter('config.fps').get_parameter_value().integer_value
+        self.DEBUG = self.get_parameter('config.debug').get_parameter_value().bool_value
         
         # Subscriber Initialization
         self.mode_sub = self.create_subscription(Bool, '/robot/mode', self.mode_callback, qos_profile_services_default)
@@ -103,7 +109,9 @@ class VisionNode(Node):
 
         # Threading and Buffering System Initialization
         self.frame_buffer = deque(maxlen=5)
-        self.result_buffer = deque(maxlen=5)
+        self.latest_result = None
+        self.result_lock = threading.Lock()
+
         self.running = True
         self.stats = {'processed': 0, 'dropped': 0}
 
@@ -120,12 +128,13 @@ class VisionNode(Node):
         self.is_surface = False
         
         # Mission Variables
-        self.mission = ''
+        self.mission = 'Floating Ball'
         self.docking = 'green_dock'
         self.left_buoy = 'green_buoy'
         self.right_buoy = 'red_buoy'
-        self.prev_time = 0
         self.fps = 0
+        self.frame_count = 0
+        self.fps_update_time = time.time()
 
         # Camera Configuration
         self.cam = cv2.VideoCapture(camera_device)
@@ -151,8 +160,8 @@ class VisionNode(Node):
 
     def warm_up_models(self):
         self.get_logger().info("Warming up RKNN models...")
-        dummy_frame = np.zeros((self.HEIGHT, self.WIDTH, 3), dtype=np.uint8)
 
+        dummy_frame = np.zeros((self.HEIGHT, self.WIDTH, 3), dtype=np.uint8)
         for i, model in enumerate(self.models):
             try:
                 self.get_logger().info(f"Warming up model {i+1}/{len(self.models)}")
@@ -169,21 +178,25 @@ class VisionNode(Node):
             if self.frame_buffer:
                 try:
                     frame = self.frame_buffer.popleft()
-                    result = model(frame, imgsz=self.detection_imgsz, conf=self.detection_conf, iou=self.detection_iou, half=True, verbose=False)
+                    result = model(
+                        frame,
+                        imgsz=self.detection_imgsz,
+                        conf=self.detection_conf,
+                        iou=self.detection_iou,
+                        half=self.detection_half,
+                        verbose=self.detection_verbose
+                    )
 
-                    # Store result with timestamp for latency tracking
-                    if len(self.result_buffer) >= self.result_buffer.maxlen:
-                        self.result_buffer.popleft()
-
-                    # Store result with metadata
-                    self.result_buffer.append((frame, result[0], time.time()))
-                    self.stats['processed'] += 1
+                    with self.result_lock:
+                        self.latest_result = result[0]
+                        self.stats['processed'] += 1
 
                 except IndexError:
-                    # No frames available, brief pause
-                    time.sleep(0.001)
+                    pass
+
                 except Exception as e:
                     self.get_logger().error(f"Worker {worker_id} processing error: {e}")
+
             else:
                 time.sleep(0.001)
 
@@ -207,9 +220,11 @@ class VisionNode(Node):
 
     def load_parameter(self):        
         # YOLO Detection Parameter Initialization
+        self.detection_imgsz = self.get_parameter('vision.detection.image_size').get_parameter_value().integer_value
         self.detection_conf = self.get_parameter('vision.detection.confidence').get_parameter_value().double_value
         self.detection_iou = self.get_parameter('vision.detection.iou_threshold').get_parameter_value().double_value
-        self.detection_imgsz = self.get_parameter('vision.detection.image_size').get_parameter_value().integer_value
+        self.detection_half = self.get_parameter('vision.detection.half').get_parameter_value().bool_value
+        self.detection_verbose = self.get_parameter('vision.detection.verbose').get_parameter_value().bool_value
 
         # RC Parameter Initialization
         self.min_rc_value = self.get_parameter('vision.rc.min_value').get_parameter_value().integer_array_value
@@ -263,85 +278,83 @@ class VisionNode(Node):
                         self.get_logger().info("S-VIZ → Surface Imaging!")
 
     def processor(self, input_frame):
-        # Add frame to processing buffer for worker threads
+        # 1. Add the raw frame to the buffer for the worker thread
         if len(self.frame_buffer) >= self.frame_buffer.maxlen:
-            self.frame_buffer.popleft()  # Drop oldest frame to prevent lag
+            self.frame_buffer.popleft()
             self.stats['dropped'] += 1
 
         self.frame_buffer.append(input_frame)
 
-        # Initialize defaults
-        raw_yaw = 1500  # Default mid value
+        # 2. Prepare the frame to display
+        display_frame = input_frame.copy()
+        
+        # 3. Initialize default values
+        raw_yaw = self.mid_rc_value
         objects_detected = False
 
-        # Try to get processed result from buffer
-        if self.result_buffer:
-            try:
-                frame, result, _ = self.result_buffer.popleft()
+        with self.result_lock:
+            result = self.latest_result
 
-                # Check if objects were detected
-                if result and hasattr(result, 'boxes') and len(result.boxes) > 0:
-                    objects_detected = True
-
-                # Apply visualization and get raw yaw data
-                if result:
-                    frame = result.plot()  # Competition (optional)
-                    if self.vis and hasattr(result, 'boxes'):
-                        frame, raw_yaw, _ = self.vis.processor(
-                            frame,
-                            self.fps,
-                            self.mission,
-                            self.docking,
-                            self.left_buoy,
-                            self.right_buoy,
-                            result.boxes.xyxy.tolist(),
-                            result.boxes.conf.tolist(),
-                            result.boxes.cls.tolist(),
-                            frame.shape[1],
-                            frame.shape[0],
-                            self.min_rc_value[0 if self.mission == "Floating Ball" else 1],
-                            self.mid_rc_value,
-                            self.max_rc_value[0 if self.mission == "Floating Ball" else 1]
-                        )
-
-                # Debug: Show processed image
-                # cv2.imshow('Vision Cam', frame)
-                # cv2.waitKey(1)
-                
-                img_msg = self.bridge.cv2_to_imgmsg(frame, 'bgr8')
-                self._handle_surface_imaging(img_msg)
-                # self.navigation_vision_pub.publish(img_msg)
-
-            except IndexError:
-                # No processed results available, use input frame
-
-                # Debug: Show processed image
-                # cv2.imshow('Vision Cam', input_frame)
-                # cv2.waitKey(1)
-
-                img_msg = self.bridge.cv2_to_imgmsg(input_frame, 'bgr8')
-                self._handle_surface_imaging(img_msg)
-                # self.navigation_vision_pub.publish(img_msg)
+        # 4. If there is a result, process it on top of the frame
+        if result and hasattr(result, 'boxes') and len(result.boxes) > 0:
+            objects_detected = True
+            
+            if self.vis:
+                display_frame, raw_yaw, _ = self.vis.processor(
+                    display_frame,
+                    self.fps,
+                    self.mission,
+                    self.docking,
+                    self.left_buoy,
+                    self.right_buoy,
+                    result.boxes.xyxy.tolist(),
+                    result.boxes.conf.tolist(),
+                    result.boxes.cls.tolist(),
+                    display_frame.shape[1],
+                    display_frame.shape[0],
+                    self.min_rc_value[0 if self.mission == "Floating Ball" else 1],
+                    self.mid_rc_value,
+                    self.max_rc_value[0 if self.mission == "Floating Ball" else 1]
+                )
         else:
-            # No processed results available, use input frame
-
-            # Debug: Show processed image
-            # cv2.imshow('Vision Cam', input_frame)
-            # cv2.waitKey(1)
-
-            img_msg = self.bridge.cv2_to_imgmsg(input_frame, 'bgr8')
-            self._handle_surface_imaging(img_msg)
-            # self.navigation_vision_pub.publish(img_msg)
-
-        # Publish detection results for navigation node
+            objects_detected = False
+            
+            if self.vis:
+                display_frame, raw_yaw, _ = self.vis.processor(
+                    display_frame,
+                    self.fps,
+                    self.mission,
+                    self.docking,
+                    self.left_buoy,
+                    self.right_buoy,
+                    [],
+                    [],
+                    [],
+                    display_frame.shape[1],
+                    display_frame.shape[0],
+                    self.min_rc_value[0 if self.mission == "Floating Ball" else 1],
+                    self.mid_rc_value,
+                    self.max_rc_value[0 if self.mission == "Floating Ball" else 1]
+                )
+        
+        # 5. Publish ROS data from the composed frame
         self.obj_detection_pub.publish(Bool(data=objects_detected))
         self.raw_yaw_pub.publish(Int32(data=int(raw_yaw)))
+        
+        img_msg = self.bridge.cv2_to_imgmsg(display_frame, 'bgr8')
+        self._handle_surface_imaging(img_msg)
+        # self.navigation_vision_pub.publish(img_msg)
+        
+        return display_frame
 
     def calculate_fps(self):
-        current_time = self.get_clock().now().nanoseconds / 1e9
-        self.fps = 1 / (current_time - self.prev_time)
-        self.prev_time = current_time
-        self.get_logger().info(f"S-VIZ → FPS: {self.fps:.2f}", throttle_duration_sec=5.0)
+        self.frame_count += 1
+        current_time = time.time()
+        if current_time - self.fps_update_time >= 1.0:
+            self.fps = self.frame_count / (current_time - self.fps_update_time)
+            self.frame_count = 0
+            self.fps_update_time = current_time
+            self.get_logger().info(f"S-VIZ → FPS: {self.fps:.2f}")
 
     def runner(self):
         success, frame = self.cam.read()
@@ -349,7 +362,14 @@ class VisionNode(Node):
             self.get_logger().error("Failed to capture frame from camera")
             return
         
-        self.processor(frame)
+        display_frame = self.processor(frame)
+
+        # DEBUG: show frame
+        if self.DEBUG:
+            cv2.imshow('Vision Cam', display_frame)
+            cv2.waitKey(1)
+        
+        # Calculate FPS
         self.calculate_fps()
         
         # Publish surface mission status
