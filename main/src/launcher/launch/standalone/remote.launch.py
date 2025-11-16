@@ -33,14 +33,6 @@ def generate_launch_description():
         #     output='screen',
         #     emulate_tty=True
         # ),
-        # Node(
-        #     package='perception',
-        #     executable='vision_recorder.py',
-        #     name='vision_node',
-        #     output='screen',
-        #     parameters=[perception_param],
-        #     emulate_tty=True
-        # ),
         
         
         # SENSOR PACKAGE

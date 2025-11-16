@@ -129,14 +129,6 @@ def generate_launch_description():
             emulate_tty=True,
             parameters=[perception_param]
         ),
-        # Node(
-        #     package='perception',
-        #     executable='vision_recorder.py',
-        #     name='vision_node',
-        #     output='screen',
-        #     parameters=[perception_param],
-        #     emulate_tty=True
-        # ),
 
 
         # SENSOR PACKAGE
@@ -149,22 +141,22 @@ def generate_launch_description():
             emulate_tty=True,
             parameters=[sensor_param]
         ),
-        Node(
-            package='rplidar_ros',
-            executable='rplidar_node',
-            name='rplidar_node',
-            output='screen',
-            emulate_tty=True,
-            parameters=[sensor_param]
-        ),
-        Node(
-            package='sensor',
-            executable='rplidar',
-            name='lidar_node',
-            output='screen',
-            emulate_tty=True,
-            parameters=[sensor_param]
-        ),
+        # Node(
+        #     package='rplidar_ros',
+        #     executable='rplidar_node',
+        #     name='rplidar_node',
+        #     output='screen',
+        #     emulate_tty=True,
+        #     parameters=[sensor_param]
+        # ),
+        # Node(
+        #     package='sensor',
+        #     executable='rplidar',
+        #     name='lidar_node',
+        #     output='screen',
+        #     emulate_tty=True,
+        #     parameters=[sensor_param]
+        # ),
         Node(
             package='sensor',
             executable='state',

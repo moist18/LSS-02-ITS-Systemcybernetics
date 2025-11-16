@@ -31,12 +31,4 @@ def generate_launch_description():
             emulate_tty=True,
             parameters=[perception_param]
         ),
-        # Node(
-        #     package='perception',
-        #     executable='vision_recorder.py',
-        #     name='vision_node',
-        #     output='screen',
-        #     parameters=[perception_param],
-        #     emulate_tty=True
-        # )
     ])

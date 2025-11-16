@@ -58,6 +58,7 @@ class VisionNode(Node):
         self.declare_parameter('vision.detection.iou_threshold', 0.5)
         self.declare_parameter('vision.detection.half', False)
         self.declare_parameter('vision.detection.verbose', False)
+        self.declare_parameter('vision.detection.min_detection_area', 480)
 
         # RC Parameter Declaration
         self.declare_parameter('vision.rc.min_value', [1000, 1300])
@@ -218,13 +219,14 @@ class VisionNode(Node):
             # Fallback to single-threaded mode
             self.running = False
 
-    def load_parameter(self):        
+    def load_parameter(self):
         # YOLO Detection Parameter Initialization
         self.detection_imgsz = self.get_parameter('vision.detection.image_size').get_parameter_value().integer_value
         self.detection_conf = self.get_parameter('vision.detection.confidence').get_parameter_value().double_value
         self.detection_iou = self.get_parameter('vision.detection.iou_threshold').get_parameter_value().double_value
         self.detection_half = self.get_parameter('vision.detection.half').get_parameter_value().bool_value
         self.detection_verbose = self.get_parameter('vision.detection.verbose').get_parameter_value().bool_value
+        self.min_detection_area = self.get_parameter('vision.detection.min_detection_area').get_parameter_value().integer_value
 
         # RC Parameter Initialization
         self.min_rc_value = self.get_parameter('vision.rc.min_value').get_parameter_value().integer_array_value
@@ -298,7 +300,7 @@ class VisionNode(Node):
         # 4. If there is a result, process it on top of the frame
         if result and hasattr(result, 'boxes') and len(result.boxes) > 0:
             objects_detected = True
-            
+
             if self.vis:
                 display_frame, raw_yaw, _ = self.vis.processor(
                     display_frame,
@@ -314,11 +316,12 @@ class VisionNode(Node):
                     display_frame.shape[0],
                     self.min_rc_value[0 if self.mission == "Floating Ball" else 1],
                     self.mid_rc_value,
-                    self.max_rc_value[0 if self.mission == "Floating Ball" else 1]
+                    self.max_rc_value[0 if self.mission == "Floating Ball" else 1],
+                    self.min_detection_area
                 )
         else:
             objects_detected = False
-            
+
             if self.vis:
                 display_frame, raw_yaw, _ = self.vis.processor(
                     display_frame,
@@ -334,7 +337,8 @@ class VisionNode(Node):
                     display_frame.shape[0],
                     self.min_rc_value[0 if self.mission == "Floating Ball" else 1],
                     self.mid_rc_value,
-                    self.max_rc_value[0 if self.mission == "Floating Ball" else 1]
+                    self.max_rc_value[0 if self.mission == "Floating Ball" else 1],
+                    self.min_detection_area
                 )
         
         # 5. Publish ROS data from the composed frame

@@ -22,7 +22,7 @@ class BBoxVisualization():
         self.midpoint_deadzone = 50
         self.single_deadzone = int(self.midpoint_deadzone * 4.5)
 
-    def processor(self, frame, fps, mission, docking, left_buoy, right_buoy, boxes, confs, clss, width, height, batas_bawah, batas_tengah, batas_atas):
+    def processor(self, frame, fps, mission, docking, left_buoy, right_buoy, boxes, confs, clss, width, height, batas_bawah, batas_tengah, batas_atas, min_area_threshold):
         is_finish = False
         connector_midpoint = None
         yaw = batas_tengah
@@ -67,6 +67,10 @@ class BBoxVisualization():
             cls_name = self.cls_dict.get(cl, 'CLS{}'.format(cl))
             midpoint = (int((x1 + x2) / 2), int((y1 + y2) / 2))
             area = (x2 - x1) * (y2 - y1)
+
+            # Filter out objects with area below threshold (too far/small)
+            if area < min_area_threshold:
+                continue
 
             if cls_name in max_area and area > max_area[cls_name]:
                 max_area[cls_name] = area

@@ -3,19 +3,20 @@
     model_path: '/home/ubuntu/ASV-2025/main/src/perception/perception/models/LESGO11s_x640_rknn_model'
 
     config:
-      camera_device: 0          # Camera device ID (0=/dev/video0, 2=/dev/video2)
-      width: 640                # Camera resolution width
-      height: 480               # Camera resolution height
-      fps: 20                   # Camera frame rate
-      debug: true              # Enable debug window (cv2.imshow)
+      camera_device: 0            # Camera device ID (0=/dev/video0, 2=/dev/video2)
+      width: 640                  # Camera resolution width
+      height: 480                 # Camera resolution height
+      fps: 20                     # Camera frame rate
+      debug: false                # Enable debug window (cv2.imshow)
 
     vision:
       detection:
-        image_size: 640         # Input image size for YOLO model
-        confidence: 0.4         # Detection confidence threshold (0.0-1.0)
-        iou_threshold: 0.4      # IoU threshold for NMS (0.0-1.0)
-        half: false             # Use half precision for inference
-        verbose: false          # Enable verbose output
+        image_size: 640           # Input image size for YOLO model
+        confidence: 0.4           # Detection confidence threshold (0.0-1.0)
+        iou_threshold: 0.4        # IoU threshold for NMS (0.0-1.0)
+        half: false               # Use half precision for inference
+        verbose: false            # Enable verbose output
+        min_detection_area: 480   # Minimum bounding box area (pixels²) to filter distant objects
 
       rc:
         min_value: [1000, 1300]
@@ -25,11 +26,11 @@
 /underwater_node:
   ros__parameters:
     config:
-      camera_device: 2          # Camera device ID (0=/dev/video0, 2=/dev/video2)
-      width: 640                # Camera resolution width
-      height: 480               # Camera resolution height
-      fps: 20                   # Camera frame rate
-      debug: false              # Enable debug window (cv2.imshow)
+      camera_device: 2            # Camera device ID (0=/dev/video0, 2=/dev/video2)
+      width: 640                  # Camera resolution width
+      height: 480                 # Camera resolution height
+      fps: 20                     # Camera frame rate
+      debug: false                # Enable debug window (cv2.imshow)
 
 /recorder_node:
   ros__parameters:
