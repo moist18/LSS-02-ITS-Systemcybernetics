@@ -13,7 +13,7 @@
       detection:
         image_size: 640         # Input image size for YOLO model
         confidence: 0.4         # Detection confidence threshold (0.0-1.0)
-        iou_threshold: 0.6      # IoU threshold for NMS (0.0-1.0)
+        iou_threshold: 0.4      # IoU threshold for NMS (0.0-1.0)
         half: false             # Use half precision for inference
         verbose: false          # Enable verbose output
 
