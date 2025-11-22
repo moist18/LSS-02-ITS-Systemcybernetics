@@ -50,15 +50,18 @@ class VisionNode(Node):
         self.declare_parameter('config.width', 640)
         self.declare_parameter('config.height', 480)
         self.declare_parameter('config.fps', 30)
-        self.declare_parameter('config.debug', True)
+        self.declare_parameter('config.debug', False)
+        self.declare_parameter('config.use_lidar', True)
         
         # Detection Parameter Declaration
         self.declare_parameter('vision.detection.image_size', 640)
         self.declare_parameter('vision.detection.confidence', 0.5)
         self.declare_parameter('vision.detection.iou_threshold', 0.5)
+        self.declare_parameter('vision.detection.agnostic_nms', False)
         self.declare_parameter('vision.detection.half', False)
         self.declare_parameter('vision.detection.verbose', False)
-        self.declare_parameter('vision.detection.min_detection_area', 480)
+        self.declare_parameter('vision.detection.min_buoy_area', 480)
+        self.declare_parameter('vision.detection.min_box_area', 480)
 
         # RC Parameter Declaration
         self.declare_parameter('vision.rc.min_value', [1000, 1300])
@@ -74,6 +77,7 @@ class VisionNode(Node):
         self.HEIGHT = self.get_parameter('config.height').get_parameter_value().integer_value
         self.FPS = self.get_parameter('config.fps').get_parameter_value().integer_value
         self.DEBUG = self.get_parameter('config.debug').get_parameter_value().bool_value
+        self.USE_LIDAR = self.get_parameter('config.use_lidar').get_parameter_value().bool_value
         
         # Subscriber Initialization
         self.mode_sub = self.create_subscription(Bool, '/robot/mode', self.mode_callback, qos_profile_services_default)
@@ -93,6 +97,7 @@ class VisionNode(Node):
         self.surface_mission_pub = self.create_publisher(Bool, '/robot/mission/surface', qos_profile_services_default)
         self.obj_detection_pub = self.create_publisher(Bool, '/detect/object/bool', qos_profile_services_default)
         self.raw_yaw_pub = self.create_publisher(Int32, '/robot/vision/raw_yaw', qos_profile_services_default)
+        self.snapshot_pub = self.create_publisher(Bool, '/robot/snapshot', qos_profile_services_default)
 
         # RKNN Optimization Initialization
         optimize_rknn_model()
@@ -125,8 +130,8 @@ class VisionNode(Node):
         self.gps_control = False
         self.compass_control = False
         self.vision_control = False
-        self.lidar = False
         self.is_surface = False
+        self.lidar = False
         
         # Mission Variables
         self.mission = 'Floating Ball'
@@ -184,6 +189,7 @@ class VisionNode(Node):
                         imgsz=self.detection_imgsz,
                         conf=self.detection_conf,
                         iou=self.detection_iou,
+                        agnostic_nms=self.agnostic_nms,
                         half=self.detection_half,
                         verbose=self.detection_verbose
                     )
@@ -224,9 +230,11 @@ class VisionNode(Node):
         self.detection_imgsz = self.get_parameter('vision.detection.image_size').get_parameter_value().integer_value
         self.detection_conf = self.get_parameter('vision.detection.confidence').get_parameter_value().double_value
         self.detection_iou = self.get_parameter('vision.detection.iou_threshold').get_parameter_value().double_value
+        self.agnostic_nms = self.get_parameter('vision.detection.agnostic_nms').get_parameter_value().bool_value
         self.detection_half = self.get_parameter('vision.detection.half').get_parameter_value().bool_value
         self.detection_verbose = self.get_parameter('vision.detection.verbose').get_parameter_value().bool_value
-        self.min_detection_area = self.get_parameter('vision.detection.min_detection_area').get_parameter_value().integer_value
+        self.min_buoy_area = self.get_parameter('vision.detection.min_buoy_area').get_parameter_value().integer_value
+        self.min_box_area = self.get_parameter('vision.detection.min_box_area').get_parameter_value().integer_value
 
         # RC Parameter Initialization
         self.min_rc_value = self.get_parameter('vision.rc.min_value').get_parameter_value().integer_array_value
@@ -270,14 +278,20 @@ class VisionNode(Node):
             self.is_surface = False
             self.get_logger().info("S-VIZ → Successfully Reset Mission!")
 
-    def _handle_surface_imaging(self, img_msg):
+    def _handle_surface_imaging(self, img_msg, snapshot):
         if self.auto_mode:
             if not self.gps_control and not self.compass_control and self.vision_control:
                 if self.mission == "Surface Imaging":
-                    if self.lidar and not self.is_surface:
-                        self.is_surface = True
-                        self.surface_image_pub.publish(img_msg)
-                        self.get_logger().info("S-VIZ → Surface Imaging!")
+                    if self.USE_LIDAR:
+                        if self.lidar and not self.is_surface:
+                            self.is_surface = True
+                            self.surface_image_pub.publish(img_msg)
+                            self.get_logger().info("S-VIZ → Surface Imaging!")
+                    else:
+                        if snapshot and not self.is_surface:
+                            self.is_surface = True
+                            self.surface_image_pub.publish(img_msg)
+                            self.get_logger().info("S-VIZ → Surface Imaging!")
 
     def processor(self, input_frame):
         # 1. Add the raw frame to the buffer for the worker thread
@@ -299,10 +313,11 @@ class VisionNode(Node):
 
         # 4. If there is a result, process it on top of the frame
         if result and hasattr(result, 'boxes') and len(result.boxes) > 0:
+            plot_frame = result.plot()
             objects_detected = True
 
             if self.vis:
-                display_frame, raw_yaw, _ = self.vis.processor(
+                display_frame, raw_yaw, snapshot, _ = self.vis.processor(
                     display_frame,
                     self.fps,
                     self.mission,
@@ -317,13 +332,15 @@ class VisionNode(Node):
                     self.min_rc_value[0 if self.mission == "Floating Ball" else 1],
                     self.mid_rc_value,
                     self.max_rc_value[0 if self.mission == "Floating Ball" else 1],
-                    self.min_detection_area
+                    self.min_buoy_area,
+                    self.min_box_area
                 )
         else:
+            plot_frame = display_frame
             objects_detected = False
 
             if self.vis:
-                display_frame, raw_yaw, _ = self.vis.processor(
+                display_frame, raw_yaw, snapshot, _ = self.vis.processor(
                     display_frame,
                     self.fps,
                     self.mission,
@@ -338,15 +355,17 @@ class VisionNode(Node):
                     self.min_rc_value[0 if self.mission == "Floating Ball" else 1],
                     self.mid_rc_value,
                     self.max_rc_value[0 if self.mission == "Floating Ball" else 1],
-                    self.min_detection_area
+                    self.min_buoy_area,
+                    self.min_box_area
                 )
         
-        # 5. Publish ROS data from the composed frame
+        # 6. Publish ROS data from the composed frame
         self.obj_detection_pub.publish(Bool(data=objects_detected))
         self.raw_yaw_pub.publish(Int32(data=int(raw_yaw)))
+        self.snapshot_pub.publish(Bool(data=snapshot))
         
-        img_msg = self.bridge.cv2_to_imgmsg(display_frame, 'bgr8')
-        self._handle_surface_imaging(img_msg)
+        img_msg = self.bridge.cv2_to_imgmsg(plot_frame, 'bgr8')
+        self._handle_surface_imaging(img_msg, snapshot)
         # self.navigation_vision_pub.publish(img_msg)
         
         return display_frame

@@ -16,7 +16,8 @@ public:
         this->declare_parameter<int>("config.width", 640);
         this->declare_parameter<int>("config.height", 480);
         this->declare_parameter<int>("config.fps", 30);
-        this->declare_parameter<bool>("config.debug", true);
+        this->declare_parameter<bool>("config.debug", false);
+        this->declare_parameter<bool>("config.use_lidar", true);
 
         // Parameter Setup
         this->camera_device = this->get_parameter("config.camera_device").as_int();
@@ -24,6 +25,7 @@ public:
         this->HEIGHT = this->get_parameter("config.height").as_int();
         this->FPS = this->get_parameter("config.fps").as_int();
         this->DEBUG = this->get_parameter("config.debug").as_bool();
+        this->USE_LIDAR = this->get_parameter("config.use_lidar").as_bool();
 
         // Subscriber Initialization
         this->mode_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mode", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::mode_callback, this, std::placeholders::_1));
@@ -31,6 +33,7 @@ public:
         this->compass_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/compass", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::compass_control_callback, this, std::placeholders::_1));
         this->vision_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/vision", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::vision_control_callback, this, std::placeholders::_1));
         this->lidar_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/lidar", rclcpp::SensorDataQoS(), std::bind(&UnderwaterNode::lidar_callback, this, std::placeholders::_1));
+        this->snapshot_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/snapshot", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::snapshot_callback, this, std::placeholders::_1));
         this->mission_sub = this->create_subscription<std_msgs::msg::String>("/robot/mission", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::mission_callback, this, std::placeholders::_1));
         this->reset_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/mission/reset", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::reset_mission_callback, this, std::placeholders::_1));
 
@@ -71,6 +74,11 @@ private:
         this->lidar = msg->data;
     }
 
+    void snapshot_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
+        this->snapshot = msg->data;
+    }
+
     void mission_callback(const std_msgs::msg::String::SharedPtr msg) {
         std::lock_guard<std::mutex> lock(this->mutex);
         this->mission = msg->data;
@@ -92,11 +100,20 @@ private:
         if (this->auto_mode) {
             if (!this->gps_control && !this->compass_control && this->vision_control) {
                 if (this->mission == "Underwater Imaging") {
-                    if (this->lidar && !this->is_underwater) {
-                        this->is_underwater = true;
-                        auto img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame).toImageMsg();
-                        this->underwater_image_pub->publish(*img_msg);
-                        RCLCPP_INFO(this->get_logger(), "U-VIZ: Underwater Imaging!");
+                    if (this->USE_LIDAR) {
+                        if (this->lidar && !this->is_underwater) {
+                            this->is_underwater = true;
+                            auto img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame).toImageMsg();
+                            this->underwater_image_pub->publish(*img_msg);
+                            RCLCPP_INFO(this->get_logger(), "U-VIZ: Underwater Imaging!");
+                        }
+                    } else {
+                        if (this->snapshot && !this->is_underwater) {
+                            this->is_underwater = true;
+                            auto img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame).toImageMsg();
+                            this->underwater_image_pub->publish(*img_msg);
+                            RCLCPP_INFO(this->get_logger(), "U-VIZ: Underwater Imaging!");
+                        }
                     }
                 }
             }
@@ -151,6 +168,7 @@ private:
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr compass_control_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr vision_control_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr lidar_sub;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr snapshot_sub;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr mission_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr reset_mission_sub;
 
@@ -171,12 +189,14 @@ private:
     int HEIGHT;
     int FPS;
     bool DEBUG;
+    bool USE_LIDAR;
     cv::VideoCapture cam;
     bool auto_mode = true;
     bool gps_control = false;
     bool compass_control = false;
     bool vision_control = false;
     bool lidar = false;
+    bool snapshot = false;
     bool is_underwater = false;
     std::string mission = "";
 };

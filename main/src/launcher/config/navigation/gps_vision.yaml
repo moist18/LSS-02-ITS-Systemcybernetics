@@ -75,6 +75,9 @@
 
 /vision_navigation:
   ros__parameters:
+    config:
+      use_lidar: true
+
     vision:
       rc:
         throttle: [2000, 1700]

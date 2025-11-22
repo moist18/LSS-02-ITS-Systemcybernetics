@@ -83,14 +83,18 @@ private:
 
     void left_buoy_callback(const std_msgs::msg::String::SharedPtr msg) {
         std::lock_guard<std::mutex> lock(this->mutex);
-        this->default_left = msg->data;
-        this->left_buoy = msg->data;
+        if (msg->data != this->left_buoy) {
+            this->default_left = msg->data;
+            this->left_buoy = msg->data;
+        }
     }
 
     void right_buoy_callback(const std_msgs::msg::String::SharedPtr msg) {
         std::lock_guard<std::mutex> lock(this->mutex);
-        this->default_right = msg->data;
-        this->right_buoy = msg->data;
+        if (msg->data != this->right_buoy) {
+            this->default_right = msg->data;
+            this->right_buoy = msg->data;
+        }
     }
 
     void surface_callback(const std_msgs::msg::Bool::SharedPtr msg) {

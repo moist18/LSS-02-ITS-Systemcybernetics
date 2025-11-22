@@ -8,15 +8,18 @@
       height: 480                 # Camera resolution height
       fps: 20                     # Camera frame rate
       debug: false                # Enable debug window (cv2.imshow)
+      use_lidar: true             # Enable lidar sensing
 
     vision:
       detection:
         image_size: 640           # Input image size for YOLO model
         confidence: 0.4           # Detection confidence threshold (0.0-1.0)
         iou_threshold: 0.4        # IoU threshold for NMS (0.0-1.0)
+        agnostic_nms: true        # Disable class-specific NMS
         half: false               # Use half precision for inference
         verbose: false            # Enable verbose output
-        min_detection_area: 480   # Minimum bounding box area (pixels²) to filter distant objects
+        min_buoy_area: 500        # Minimum bounding box area (pixels²) to filter distant objects
+        min_box_area: 500         # Minimum bounding box area (pixels²) to filter distant objects
 
       rc:
         min_value: [1000, 1300]
@@ -31,6 +34,7 @@
       height: 480                 # Camera resolution height
       fps: 20                     # Camera frame rate
       debug: false                # Enable debug window (cv2.imshow)
+      use_lidar: true             # Enable lidar sensing
 
 /recorder_node:
   ros__parameters:

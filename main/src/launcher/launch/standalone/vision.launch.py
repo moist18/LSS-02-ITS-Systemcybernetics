@@ -15,14 +15,15 @@ def generate_launch_description():
         
         # PERCEPTION PACKAGE
         
-        Node(
-            package='perception',
-            executable='underwater',
-            name='underwater_node',
-            output='screen',
-            emulate_tty=True,
-            parameters=[perception_param]
-        ),
+        # Node(
+        #     package='perception',
+        #     executable='underwater',
+        #     name='underwater_node',
+        #     output='screen',
+        #     emulate_tty=True,
+        #     parameters=[perception_param]
+        # ),
+        
         Node(
             package='perception',
             executable='vision.py',

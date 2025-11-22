@@ -69,10 +69,13 @@
         mid_value: 1500
         max_value: 1700
 
-      tolerance: 10.0
+      tolerance: 20.0
 
 /vision_navigation:
   ros__parameters:
+    config:
+      use_lidar: true
+
     vision:
       rc:
         throttle: [2000, 1700]

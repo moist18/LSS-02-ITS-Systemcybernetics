@@ -5,10 +5,11 @@ class BBoxVisualization():
     def __init__(self, cls_dict):
         self.cls_dict = cls_dict  # ['blue_box', 'green_box', 'green_buoy', 'green_dock', 'red_buoy', 'red_dock']
 
-    def processor (self, frame, fps, mission, docking, left_buoy, right_buoy, boxes, confs, clss, width, height, batas_bawah, batas_tengah, batas_atas, min_area_threshold):
-        is_finish = False
+    def processor(self, frame, fps, mission, docking, left_buoy, right_buoy, boxes, confs, clss, width, height, batas_bawah, batas_tengah, batas_atas, min_buoy_area, min_box_area):
         connector_midpoint = None
         yaw = batas_tengah
+        snapshot = False
+        is_finish = False
         
         max_area = {
             'blue_box': 0,
@@ -52,8 +53,15 @@ class BBoxVisualization():
             area = (x2 - x1) * (y2 - y1)
 
             # Filter out objects with area below threshold (too far/small)
-            if area < min_area_threshold:
-                continue
+            if mission == "Floating Ball":
+                if area < min_buoy_area:
+                    continue
+
+            elif mission.endswith("Imaging"):
+                if area < min_box_area:
+                    continue
+                if cls_name in ['green_box', 'blue_box']:
+                    snapshot = True
 
             if cls_name in max_area and area > max_area[cls_name]:
                 max_area[cls_name] = area
@@ -103,4 +111,4 @@ class BBoxVisualization():
                 a, b = midpoints[docking]
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
         
-        return frame, yaw, is_finish
+        return frame, yaw, snapshot, is_finish

@@ -64,7 +64,8 @@ public:
         this->declare_parameter<std::vector<int64_t>>("vision.rc.max_value", std::vector<int64_t> { 2000, 1800 });
         this->declare_parameter<std::vector<int64_t>>("vision.rc.steering_bias", std::vector<int64_t> { 0, 0 });
 
-        // Docking Timer Parameter Declaration
+        // Config Parameter Declaration
+        this->declare_parameter<bool>("config.use_lidar", true);
         this->declare_parameter<double>("vision.timer.docking", 5.0);
 
         // PID Parameter Declaration
@@ -83,6 +84,7 @@ public:
         this->compass_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/compass", rclcpp::ServicesQoS(), std::bind(&VisionNavigation::compass_control_callback, this, std::placeholders::_1));
         this->vision_control_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/control/vision", rclcpp::ServicesQoS(), std::bind(&VisionNavigation::vision_control_callback, this, std::placeholders::_1));
         this->lidar_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/lidar", rclcpp::SensorDataQoS(), std::bind(&VisionNavigation::lidar_callback, this, std::placeholders::_1));
+        this->snapshot_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/snapshot", rclcpp::ServicesQoS(), std::bind(&VisionNavigation::snapshot_callback, this, std::placeholders::_1));
         this->mission_sub = this->create_subscription<std_msgs::msg::String>("/robot/mission", rclcpp::ServicesQoS(), std::bind(&VisionNavigation::mission_callback, this, std::placeholders::_1));
         this->surface_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mission/surface", rclcpp::ServicesQoS(), std::bind(&VisionNavigation::surface_callback, this, std::placeholders::_1));
         this->underwater_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/robot/mission/underwater", rclcpp::ServicesQoS(), std::bind(&VisionNavigation::underwater_callback, this, std::placeholders::_1));
@@ -116,6 +118,7 @@ private:
         auto steering_bias_param = this->get_parameter("vision.rc.steering_bias").as_integer_array();
         this->steering_bias = { static_cast<int>(steering_bias_param[0]), static_cast<int>(steering_bias_param[1]) };
 
+        this->USE_LIDAR = this->get_parameter("config.use_lidar").as_bool();
         this->dock_duration = this->get_parameter("vision.timer.docking").as_double();
 
         double yaw_kp = this->get_parameter("vision.pid.yaw.kp").as_double();
@@ -155,6 +158,11 @@ private:
     void lidar_callback(const std_msgs::msg::Bool::SharedPtr msg) {
         std::lock_guard<std::mutex> lock(this->mutex);
         this->lidar = msg->data;
+    }
+
+    void snapshot_callback(const std_msgs::msg::Bool::SharedPtr msg) {
+        std::lock_guard<std::mutex> lock(this->mutex);
+        this->snapshot = msg->data;
     }
 
     void mission_callback(const std_msgs::msg::String::SharedPtr msg) {
@@ -214,16 +222,16 @@ private:
 
         int rc_yaw = this->mid_rc_value;
         int rc_throttle = 1500;
+        int mission_index = (this->mission == "Floating Ball") ? 0 : 1;
+        bool proximity_trigger = this->USE_LIDAR ? this->lidar : this->snapshot;
 
         if (this->objects_detected) {
-            int mission_index = (this->mission == "Floating Ball") ? 0 : 1;
             double yaw_error = static_cast<double>(this->raw_yaw - this->mid_rc_value) / (this->max_rc_value[mission_index] - this->mid_rc_value);
             rc_yaw = this->calculate_rc_value(this->pid_yaw->compute(yaw_error));
             rc_throttle = this->rc_throttle[mission_index];
             RCLCPP_INFO_THROTTLE(get_logger(), *get_clock(), 2000, "VISION-NAV → OBJ DETECTED | Yaw:%d T:%d", rc_yaw, rc_throttle);
         } else {
             rc_yaw = this->mid_rc_value;
-            int mission_index = (this->mission == "Floating Ball") ? 0 : 1;
             rc_throttle = this->rc_throttle[mission_index];
             this->pid_yaw->reset();
         }
@@ -232,24 +240,24 @@ private:
             if (!this->gps_control && !this->compass_control && this->vision_control) {
 
                 if (this->mission == "Surface Imaging") {
-                    if (this->lidar && !this->is_surface) {
+                    if (proximity_trigger && !this->is_surface) {
                         this->is_surface = true;
                         rc_yaw = this->mid_rc_value;
-                        rc_throttle = this->mid_rc_value - 200;
+                        rc_throttle = this->min_rc_value[mission_index];
                         this->pid_yaw->reset();
                     } else if (this->is_surface) {
                         rc_yaw = this->mid_rc_value;
-                        rc_throttle = this->mid_rc_value - 200;
+                        rc_throttle = this->min_rc_value[mission_index];
                         this->pid_yaw->reset();
                     }
                 } else if (this->mission == "Underwater Imaging") {
-                    if (this->lidar && !this->is_underwater) {
+                    if (proximity_trigger && !this->is_underwater) {
                         rc_yaw = this->mid_rc_value;
-                        rc_throttle = this->mid_rc_value - 200;
+                        rc_throttle = this->min_rc_value[mission_index];
                         this->pid_yaw->reset();
                     } else if (this->is_underwater) {
                         rc_yaw = this->mid_rc_value;
-                        rc_throttle = this->mid_rc_value - 200;
+                        rc_throttle = this->min_rc_value[mission_index];
                         this->pid_yaw->reset();
                     }
                 } else if (this->mission == "Docking") {
@@ -284,6 +292,7 @@ private:
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr compass_control_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr vision_control_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr lidar_sub;
+    rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr snapshot_sub;
     rclcpp::Subscription<std_msgs::msg::String>::SharedPtr mission_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr surface_mission_sub;
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr underwater_mission_sub;
@@ -318,7 +327,9 @@ private:
     bool gps_control = false;
     bool compass_control = false;
     bool vision_control = false;
+    bool USE_LIDAR = true;
     bool lidar = false;
+    bool snapshot = false;
     bool is_surface = false;
     bool is_underwater = false;
     bool is_finish = false;
