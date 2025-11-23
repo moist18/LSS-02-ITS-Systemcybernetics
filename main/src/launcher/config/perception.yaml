@@ -1,6 +1,6 @@
 /vision_node:
   ros__parameters:
-    model_path: '/home/ubuntu/ASV-2025/main/src/perception/perception/models/LESGO11s_x640_rknn_model'
+    model_path: '/home/ubuntu/ASV-2025/main/src/perception/perception/models/LESGOv8s_x640_rknn_model'
 
     config:
       camera_device: 0            # Camera device ID (0=/dev/video0, 2=/dev/video2)
@@ -8,7 +8,7 @@
       height: 480                 # Camera resolution height
       fps: 20                     # Camera frame rate
       debug: false                # Enable debug window (cv2.imshow)
-      use_lidar: true             # Enable lidar sensing
+      use_lidar: false            # Enable lidar sensing
 
     vision:
       detection:
@@ -19,7 +19,7 @@
         half: false               # Use half precision for inference
         verbose: false            # Enable verbose output
         min_buoy_area: 500        # Minimum bounding box area (pixels²) to filter distant objects
-        min_box_area: 500         # Minimum bounding box area (pixels²) to filter distant objects
+        min_box_area: 5000        # Minimum bounding box area (pixels²) to filter distant objects
 
       rc:
         min_value: [1000, 1300]
@@ -34,7 +34,7 @@
       height: 480                 # Camera resolution height
       fps: 20                     # Camera frame rate
       debug: false                # Enable debug window (cv2.imshow)
-      use_lidar: true             # Enable lidar sensing
+      use_lidar: false            # Enable lidar sensing
 
 /recorder_node:
   ros__parameters:

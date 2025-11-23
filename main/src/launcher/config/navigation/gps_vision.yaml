@@ -81,10 +81,10 @@
     vision:
       rc:
         throttle: [2000, 1700]
-        min_value: [1000, 1300]
+        min_value: [1000, 1100]
         mid_value: 1500
-        max_value: [2000, 1700]
-        steering_bias: [-70, -30]
+        max_value: [2000, 1900]
+        steering_bias: [-70, -45]
 
       pid:
         yaw:

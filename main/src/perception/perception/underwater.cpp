@@ -1,10 +1,12 @@
+#include <chrono>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/opencv.hpp>
 #include <rclcpp/qos.hpp>
 #include <rclcpp/rclcpp.hpp>
-#include <sensor_msgs/msg/image.hpp>
+#include <sensor_msgs/msg/compressed_image.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include <std_msgs/msg/string.hpp>
+#include <thread>
 
 class UnderwaterNode : public rclcpp::Node {
 public:
@@ -38,7 +40,7 @@ public:
         this->reset_mission_sub = this->create_subscription<std_msgs::msg::Bool>("/mission/reset", rclcpp::ServicesQoS(), std::bind(&UnderwaterNode::reset_mission_callback, this, std::placeholders::_1));
 
         // Publisher Initialization
-        this->underwater_image_pub = this->create_publisher<sensor_msgs::msg::Image>("/robot/image/underwater", rclcpp::ServicesQoS());
+        this->underwater_image_pub = this->create_publisher<sensor_msgs::msg::CompressedImage>("/robot/image/underwater", rclcpp::ServicesQoS());
         this->underwater_mission_pub = this->create_publisher<std_msgs::msg::Bool>("/robot/mission/underwater", rclcpp::ServicesQoS());
         this->mission_pub = this->create_publisher<std_msgs::msg::String>("/robot/mission", rclcpp::ServicesQoS());
 
@@ -93,6 +95,23 @@ private:
         }
     }
 
+    void publish_compressed_image(const cv::Mat& frame) {
+        std::vector<uchar> buf;
+        std::vector<int> params = { cv::IMWRITE_JPEG_QUALITY, 90 };
+        cv::imencode(".jpg", frame, buf, params);
+
+        auto compressed_msg = sensor_msgs::msg::CompressedImage();
+        compressed_msg.header.stamp = this->now();
+        compressed_msg.format = "jpeg";
+        compressed_msg.data = buf;
+
+        // Multiple publish with threading to ensure delivery
+        for (int i = 0; i < 3; i++) {
+            this->underwater_image_pub->publish(compressed_msg);
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        }
+    }
+
     // Processor method
     void processor(cv::Mat& frame) {
         std::lock_guard<std::mutex> lock(this->mutex);
@@ -100,20 +119,12 @@ private:
         if (this->auto_mode) {
             if (!this->gps_control && !this->compass_control && this->vision_control) {
                 if (this->mission == "Underwater Imaging") {
-                    if (this->USE_LIDAR) {
-                        if (this->lidar && !this->is_underwater) {
-                            this->is_underwater = true;
-                            auto img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame).toImageMsg();
-                            this->underwater_image_pub->publish(*img_msg);
-                            RCLCPP_INFO(this->get_logger(), "U-VIZ: Underwater Imaging!");
-                        }
-                    } else {
-                        if (this->snapshot && !this->is_underwater) {
-                            this->is_underwater = true;
-                            auto img_msg = cv_bridge::CvImage(std_msgs::msg::Header(), "bgr8", frame).toImageMsg();
-                            this->underwater_image_pub->publish(*img_msg);
-                            RCLCPP_INFO(this->get_logger(), "U-VIZ: Underwater Imaging!");
-                        }
+                    bool proximity_trigger = this->USE_LIDAR ? this->lidar : this->snapshot;
+
+                    if (proximity_trigger && !this->is_underwater) {
+                        this->is_underwater = true;
+                        this->publish_compressed_image(frame);
+                        RCLCPP_INFO(this->get_logger(), "U-VIZ: Underwater Imaging!");
                     }
                 }
             }
@@ -173,7 +184,7 @@ private:
     rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr reset_mission_sub;
 
     // Publisher Declaration
-    rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr underwater_image_pub;
+    rclcpp::Publisher<sensor_msgs::msg::CompressedImage>::SharedPtr underwater_image_pub;
     rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr underwater_mission_pub;
     rclcpp::Publisher<std_msgs::msg::String>::SharedPtr mission_pub;
 

@@ -35,10 +35,10 @@ public:
         }
 
         // RC Parameter Declaration
-        this->declare_parameter<int>("compass.rc.min_value", 1300);
+        this->declare_parameter<int>("compass.rc.min_value", 1200);
         this->declare_parameter<int>("compass.rc.mid_value", 1500);
-        this->declare_parameter<int>("compass.rc.max_value", 1700);
-        this->declare_parameter<double>("compass.tolerance", 10.0);
+        this->declare_parameter<int>("compass.rc.max_value", 1800);
+        this->declare_parameter<double>("compass.tolerance", 20.0);
 
         // Parameter Setup
         this->load_parameter();
@@ -58,7 +58,7 @@ public:
         this->compass_success_pub = this->create_publisher<std_msgs::msg::Bool>("/robot/compass/success", rclcpp::ServicesQoS());
 
         // Rate Timer Initialization
-        this->loop_timer = this->create_wall_timer(50ms, std::bind(&CompassNavigation::runner, this));
+        this->loop_timer = this->create_wall_timer(20ms, std::bind(&CompassNavigation::runner, this));
         this->param_timer = this->create_wall_timer(1s, std::bind(&CompassNavigation::param_callback, this));
 
         RCLCPP_INFO(this->get_logger(), "COMPASS-NAV → Node started");
@@ -217,13 +217,10 @@ private:
             }
         }
 
-        // Publish compass success status only on state change
-        if (this->compass_success != this->prev_compass_success) {
-            auto success_msg = std_msgs::msg::Bool();
-            success_msg.data = this->compass_success;
-            this->compass_success_pub->publish(success_msg);
-            this->prev_compass_success = this->compass_success;
-        }
+        // Publish compass success status continuously
+        auto success_msg = std_msgs::msg::Bool();
+        success_msg.data = this->compass_success;
+        this->compass_success_pub->publish(success_msg);
     }
 
     // Subscriber Declaration
@@ -266,7 +263,6 @@ private:
     bool compass_control = false;
     bool vision_control = false;
     bool compass_success = false;
-    bool prev_compass_success = false;
 };
 
 int main(int argc, char** argv) {

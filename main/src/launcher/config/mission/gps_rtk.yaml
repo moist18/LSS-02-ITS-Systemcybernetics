@@ -2,3 +2,6 @@
   ros__parameters:
     phase_duration:
       "reverse": 3.0
+
+    config:
+      enable_underwater_capture: true

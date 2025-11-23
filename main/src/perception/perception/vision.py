@@ -9,7 +9,7 @@ from collections import deque
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import qos_profile_services_default
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import CompressedImage
 from std_msgs.msg import String, Bool, Int32
 from cv_bridge import CvBridge
 
@@ -92,8 +92,8 @@ class VisionNode(Node):
         self.reset_mission_sub = self.create_subscription(Bool, '/mission/reset', self.reset_mission_callback, qos_profile_services_default)
 
         # Publisher Initialization
-        self.navigation_vision_pub = self.create_publisher(Image, '/robot/vision/navigation', qos_profile_services_default)
-        self.surface_image_pub = self.create_publisher(Image, '/robot/image/surface', qos_profile_services_default)
+        self.navigation_vision_pub = self.create_publisher(CompressedImage, '/robot/vision/navigation', qos_profile_services_default)
+        self.surface_image_pub = self.create_publisher(CompressedImage, '/robot/image/surface', qos_profile_services_default)
         self.surface_mission_pub = self.create_publisher(Bool, '/robot/mission/surface', qos_profile_services_default)
         self.obj_detection_pub = self.create_publisher(Bool, '/detect/object/bool', qos_profile_services_default)
         self.raw_yaw_pub = self.create_publisher(Int32, '/robot/vision/raw_yaw', qos_profile_services_default)
@@ -278,20 +278,33 @@ class VisionNode(Node):
             self.is_surface = False
             self.get_logger().info("S-VIZ → Successfully Reset Mission!")
 
-    def _handle_surface_imaging(self, img_msg, snapshot):
+    def publish_compressed_image(self, frame, publisher, quality=90, repeat=1):
+        compressed_msg = CompressedImage()
+        compressed_msg.header.stamp = self.get_clock().now().to_msg()
+        compressed_msg.format = "jpeg"
+        compressed_msg.data = np.array(cv2.imencode('.jpg', frame, [cv2.IMWRITE_JPEG_QUALITY, quality])[1]).tobytes()
+
+        if repeat > 1:
+            # Multiple publish with threading to ensure delivery
+            def publish_repeat():
+                for _ in range(repeat):
+                    publisher.publish(compressed_msg)
+                    time.sleep(0.1)
+            threading.Thread(target=publish_repeat, daemon=True).start()
+        else:
+            # Good for vision streaming
+            publisher.publish(compressed_msg)
+
+    def handle_surface_imaging(self, frame, snapshot):
         if self.auto_mode:
             if not self.gps_control and not self.compass_control and self.vision_control:
                 if self.mission == "Surface Imaging":
-                    if self.USE_LIDAR:
-                        if self.lidar and not self.is_surface:
-                            self.is_surface = True
-                            self.surface_image_pub.publish(img_msg)
-                            self.get_logger().info("S-VIZ → Surface Imaging!")
-                    else:
-                        if snapshot and not self.is_surface:
-                            self.is_surface = True
-                            self.surface_image_pub.publish(img_msg)
-                            self.get_logger().info("S-VIZ → Surface Imaging!")
+                    proximity_trigger = self.lidar if self.USE_LIDAR else snapshot
+
+                    if proximity_trigger and not self.is_surface:
+                        self.is_surface = True
+                        self.publish_compressed_image(frame, self.surface_image_pub, quality=90, repeat=3)
+                        self.get_logger().info("S-VIZ → Surface Imaging!")
 
     def processor(self, input_frame):
         # 1. Add the raw frame to the buffer for the worker thread
@@ -313,7 +326,8 @@ class VisionNode(Node):
 
         # 4. If there is a result, process it on top of the frame
         if result and hasattr(result, 'boxes') and len(result.boxes) > 0:
-            plot_frame = result.plot()
+            # plot_frame = result.plot()
+            plot_frame = display_frame
             objects_detected = True
 
             if self.vis:
@@ -363,11 +377,13 @@ class VisionNode(Node):
         self.obj_detection_pub.publish(Bool(data=objects_detected))
         self.raw_yaw_pub.publish(Int32(data=int(raw_yaw)))
         self.snapshot_pub.publish(Bool(data=snapshot))
+
+        # 7. Publish compressed surface images
+        self.handle_surface_imaging(plot_frame, snapshot)
         
-        img_msg = self.bridge.cv2_to_imgmsg(plot_frame, 'bgr8')
-        self._handle_surface_imaging(img_msg, snapshot)
-        # self.navigation_vision_pub.publish(img_msg)
-        
+        # 8. Publish compressed navigation vision streaming
+        self.publish_compressed_image(display_frame, self.navigation_vision_pub, quality=80)
+
         return display_frame
 
     def calculate_fps(self):

@@ -140,20 +140,21 @@ def generate_launch_description():
             emulate_tty=True,
             parameters=[sensor_param]
         ),
-        Node(
-            package='rplidar_ros',
-            executable='rplidar_node',
-            name='rplidar_node',
-            output='screen',
-            emulate_tty=True,
-            parameters=[sensor_param]
-        ),
-        Node(
-            package='sensor',
-            executable='rplidar',
-            name='lidar_node',
-            output='screen',
-            emulate_tty=True,
-            parameters=[sensor_param]
-        ),
+        
+        # Node(
+        #     package='rplidar_ros',
+        #     executable='rplidar_node',
+        #     name='rplidar_node',
+        #     output='screen',
+        #     emulate_tty=True,
+        #     parameters=[sensor_param]
+        # ),
+        # Node(
+        #     package='sensor',
+        #     executable='rplidar',
+        #     name='lidar_node',
+        #     output='screen',
+        #     emulate_tty=True,
+        #     parameters=[sensor_param]
+        # ),
     ])

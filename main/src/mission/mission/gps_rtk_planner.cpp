@@ -18,6 +18,7 @@ public:
 
         // Parameter Declaration
         this->declare_parameter<double>("phase_duration.reverse", 3.0);
+        this->declare_parameter<bool>("config.enable_underwater_capture", true);
 
         // Parameter Setup
         load_parameter();
@@ -51,6 +52,7 @@ private:
     void load_parameter() {
         this->phase_duration.clear();
         this->phase_duration["reverse"] = this->get_parameter("phase_duration.reverse").as_double();
+        this->enable_underwater_capture = this->get_parameter("config.enable_underwater_capture").as_bool();
     }
 
     void param_callback() {
@@ -258,7 +260,11 @@ private:
 
     void handle_waypoint_12(double current_time) {
         // Waypoint 12: Vision until underwater complete, then reverse timer, then GPS
-        if (!this->is_underwater) {
+
+        // Skip underwater capture if disabled - use timer instead
+        bool underwater_done = this->enable_underwater_capture ? this->is_underwater : true;
+
+        if (!underwater_done) {
             this->vision_navigation();
             RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 12: Underwater Imaging - Vision");
         } else {
@@ -448,6 +454,7 @@ private:
     bool is_surface = false;
     bool is_underwater = false;
     bool reverse_started = false;
+    bool enable_underwater_capture = true;
     int current_waypoint = 0;
 };
 

@@ -1,0 +1,23 @@
+description: Ultralytics LESGOv8s_x640 model trained on /kaggle/working/datasets/LESGO-13/data.yaml
+author: Ultralytics
+date: '2025-11-23T07:07:08.063819'
+version: 8.3.227
+license: AGPL-3.0 License (https://ultralytics.com/license)
+docs: https://docs.ultralytics.com
+stride: 32
+task: detect
+batch: 1
+imgsz:
+- 640
+- 640
+names:
+  0: blue_box
+  1: green_box
+  2: green_buoy
+  3: green_dock
+  4: red_buoy
+  5: red_dock
+args:
+  batch: 1
+  name: rk3588
+channels: 3

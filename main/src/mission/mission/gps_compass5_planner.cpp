@@ -22,6 +22,7 @@ public:
         this->declare_parameter<double>("phase_duration.1", 8.0);
         this->declare_parameter<double>("phase_duration.2", 8.0);
         this->declare_parameter<double>("phase_duration.reverse", 3.0);
+        this->declare_parameter<bool>("config.enable_underwater_capture", true);
 
         // Parameter Setup
         this->load_parameter();
@@ -61,6 +62,7 @@ private:
         this->phase_duration["1"] = this->get_parameter("phase_duration.1").as_double();
         this->phase_duration["2"] = this->get_parameter("phase_duration.2").as_double();
         this->phase_duration["reverse"] = this->get_parameter("phase_duration.reverse").as_double();
+        this->enable_underwater_capture = this->get_parameter("config.enable_underwater_capture").as_bool();
     }
 
     void param_callback() {
@@ -296,8 +298,12 @@ private:
             this->compass_navigation();
             RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 3: Underwater Imaging - Compass");
         } else {
-            if (!this->is_underwater) {
+            // Skip underwater capture if disabled - use timer instead
+            bool underwater_done = this->enable_underwater_capture ? this->is_underwater : true;
+
+            if (!underwater_done) {
                 this->vision_navigation();
+                RCLCPP_INFO_THROTTLE(this->get_logger(), *this->get_clock(), 2000, "PLANNER → Waypoint 3: Underwater Imaging - Vision");
             } else {
                 if (this->nav_start_time.seconds() == 0) {
                     this->nav_start_time = this->now();
@@ -465,6 +471,7 @@ private:
     bool is_surface = false;
     bool is_underwater = false;
     bool reverse_started = false;
+    bool enable_underwater_capture = true;
     int current_waypoint = 0;
 };
 
