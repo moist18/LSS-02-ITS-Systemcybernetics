@@ -21,6 +21,14 @@
         min_buoy_area: 500        # Minimum bounding box area (pixels²) to filter distant objects
         min_box_area: 5000        # Minimum bounding box area (pixels²) to filter distant objects
 
+      distance:
+        use_distance_based: true  # Enable distance-based detection, use pixel-based if false
+        camera_height: 0.40       # Camera height above water surface (meters)
+        camera_tilt_deg: 45.0     # Camera tilt angle downward (degrees)
+        focal_length_y: 320.0     # Focal length fy from camera calibration
+        principal_point_y: 240.0  # Principal point cy from camera calibration
+        trigger_distance: 0.60    # Distance threshold for surface imaging (meters)
+
       rc:
         min_value: [1000, 1300]
         mid_value: 1500

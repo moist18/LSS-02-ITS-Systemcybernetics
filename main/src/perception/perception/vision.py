@@ -63,13 +63,18 @@ class VisionNode(Node):
         self.declare_parameter('vision.detection.min_buoy_area', 480)
         self.declare_parameter('vision.detection.min_box_area', 480)
 
+        # Distance Measurement Parameter Declaration (Ground-Plane Projection)
+        self.declare_parameter('vision.distance.use_distance_based', False)
+        self.declare_parameter('vision.distance.camera_height', 0.40)
+        self.declare_parameter('vision.distance.camera_tilt_deg', 45.0)
+        self.declare_parameter('vision.distance.focal_length_y', 320.0)
+        self.declare_parameter('vision.distance.principal_point_y', 240.0)
+        self.declare_parameter('vision.distance.trigger_distance', 1.0)
+
         # RC Parameter Declaration
         self.declare_parameter('vision.rc.min_value', [1000, 1300])
         self.declare_parameter('vision.rc.mid_value', 1500)
         self.declare_parameter('vision.rc.max_value', [2000, 1700])
-        
-        # Parameter Setup
-        self.load_parameter()
         
         # Camera Parameter Initialization
         camera_device = self.get_parameter('config.camera_device').get_parameter_value().integer_value
@@ -159,6 +164,9 @@ class VisionNode(Node):
         # Rate Timer Initialization
         self.loop_timer = self.create_timer(1.0/self.FPS, self.runner)
         self.param_timer = self.create_timer(1.0, self.param_callback)
+        
+        # Parameter Setup
+        self.load_parameter()
 
         # Threading Setup
         self.setup_rknn_threading()
@@ -235,6 +243,24 @@ class VisionNode(Node):
         self.detection_verbose = self.get_parameter('vision.detection.verbose').get_parameter_value().bool_value
         self.min_buoy_area = self.get_parameter('vision.detection.min_buoy_area').get_parameter_value().integer_value
         self.min_box_area = self.get_parameter('vision.detection.min_box_area').get_parameter_value().integer_value
+
+        # Distance Measurement Parameter Initialization (Ground-Plane Projection)
+        self.use_distance_based = self.get_parameter('vision.distance.use_distance_based').get_parameter_value().bool_value
+        self.camera_height = self.get_parameter('vision.distance.camera_height').get_parameter_value().double_value
+        self.camera_tilt_deg = self.get_parameter('vision.distance.camera_tilt_deg').get_parameter_value().double_value
+        self.focal_length_y = self.get_parameter('vision.distance.focal_length_y').get_parameter_value().double_value
+        self.principal_point_y = self.get_parameter('vision.distance.principal_point_y').get_parameter_value().double_value
+        self.trigger_distance = self.get_parameter('vision.distance.trigger_distance').get_parameter_value().double_value
+
+        # Update vis utils distance parameters
+        if self.vis:
+            self.vis.use_distance_based = self.use_distance_based
+            self.vis.camera_height = self.camera_height
+            self.vis.camera_tilt_deg = self.camera_tilt_deg
+            self.vis.focal_length_y = self.focal_length_y
+            self.vis.principal_point_y = self.principal_point_y
+            self.vis.trigger_distance = self.trigger_distance
+            self.vis.v_horizon = self.vis.principal_point_y - self.vis.focal_length_y * np.tan(np.deg2rad(self.vis.camera_tilt_deg))
 
         # RC Parameter Initialization
         self.min_rc_value = self.get_parameter('vision.rc.min_value').get_parameter_value().integer_array_value
