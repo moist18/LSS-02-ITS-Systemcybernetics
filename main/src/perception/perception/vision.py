@@ -23,8 +23,8 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
 from ultralytics import YOLO
-# from perception.utils.novisual import BBoxVisualization  # Competition
-from perception.utils.visual import BBoxVisualization  # Development
+from perception.utils.novisual import BBoxVisualization  # Competition
+# from perception.utils.visual import BBoxVisualization  # Development
 
 def optimize_rknn_model():
     # Set environment variables for NPU optimization
