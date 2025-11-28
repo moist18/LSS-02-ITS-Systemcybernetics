@@ -23,8 +23,8 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
 from ultralytics import YOLO
-from perception.utils.novisual import BBoxVisualization  # Competition
-# from perception.utils.visual import BBoxVisualization  # Development
+from perception.utils.novisual import BBoxVisualization    # Competition
+# from perception.utils.visual import BBoxVisualization    # Development
 
 def optimize_rknn_model():
     # Set environment variables for NPU optimization
@@ -65,11 +65,11 @@ class VisionNode(Node):
 
         # Distance Measurement Parameter Declaration (Ground-Plane Projection)
         self.declare_parameter('vision.distance.use_distance_based', False)
-        self.declare_parameter('vision.distance.camera_height', 0.40)
+        self.declare_parameter('vision.distance.camera_height', 0.50)
         self.declare_parameter('vision.distance.camera_tilt_deg', 45.0)
         self.declare_parameter('vision.distance.focal_length_y', 320.0)
         self.declare_parameter('vision.distance.principal_point_y', 240.0)
-        self.declare_parameter('vision.distance.trigger_distance', 1.0)
+        self.declare_parameter('vision.distance.trigger_distance', 0.50)
 
         # RC Parameter Declaration
         self.declare_parameter('vision.rc.min_value', [1000, 1300])
@@ -353,6 +353,7 @@ class VisionNode(Node):
         # 4. If there is a result, process it on top of the frame
         if result and hasattr(result, 'boxes') and len(result.boxes) > 0:
             # plot_frame = result.plot()
+
             plot_frame = display_frame
             objects_detected = True
 

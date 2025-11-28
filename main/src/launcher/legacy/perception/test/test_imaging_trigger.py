@@ -18,7 +18,7 @@ class ImagingTriggerTest(Node):
         self.navigation_vision_pub = self.create_publisher(CompressedImage, '/robot/vision/navigation', qos_profile_services_default)
 
         # Camera setup
-        self.cam = cv2.VideoCapture(1)
+        self.cam = cv2.VideoCapture(0)
         self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         self.cam.set(cv2.CAP_PROP_FPS, 20)

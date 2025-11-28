@@ -7,4 +7,4 @@
       "reverse": 3.0
 
     config:
-      enable_underwater_capture: false
+      enable_underwater_capture: true

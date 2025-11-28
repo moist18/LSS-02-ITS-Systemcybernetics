@@ -1,33 +1,42 @@
+# 1. use_distance_based
+#   - true: enable distance-based measurement
+#   - false: disable distance-based measurement
+# 2. use_lidar
+#   - true: enable lidar sensing measurement
+#   - false: disable lidar sensing measurement
+# 3. none of them
+#   - enable pixel-based measurement
+
 /vision_node:
   ros__parameters:
     model_path: '/home/ubuntu/ASV-2025/main/src/perception/perception/models/LESGOv8s_x640_rknn_model'
 
     config:
-      camera_device: 0            # Camera device ID (0=/dev/video0, 2=/dev/video2)
-      width: 640                  # Camera resolution width
-      height: 480                 # Camera resolution height
-      fps: 20                     # Camera frame rate
-      debug: false                # Enable debug window (cv2.imshow)
-      use_lidar: false            # Enable lidar sensing
+      camera_device: 0              # Camera device ID (0=/dev/video0, 2=/dev/video2)
+      width: 640                    # Camera resolution width
+      height: 480                   # Camera resolution height
+      fps: 20                       # Camera frame rate
+      debug: false                  # Enable debug window (cv2.imshow)
+      use_lidar: false              # Enable lidar sensing
 
     vision:
       detection:
-        image_size: 640           # Input image size for YOLO model
-        confidence: 0.4           # Detection confidence threshold (0.0-1.0)
-        iou_threshold: 0.4        # IoU threshold for NMS (0.0-1.0)
-        agnostic_nms: true        # Disable class-specific NMS
-        half: false               # Use half precision for inference
-        verbose: false            # Enable verbose output
-        min_buoy_area: 500        # Minimum bounding box area (pixels²) to filter distant objects
-        min_box_area: 5000        # Minimum bounding box area (pixels²) to filter distant objects
+        image_size: 640             # Input image size for YOLO model
+        confidence: 0.4             # Detection confidence threshold (0.0-1.0)
+        iou_threshold: 0.4          # IoU threshold for NMS (0.0-1.0)
+        agnostic_nms: true          # Disable class-specific NMS
+        half: false                 # Use half precision for inference
+        verbose: false              # Enable verbose output
+        min_buoy_area: 416          # Minimum bounding box area (pixels²) to filter distant objects
+        min_box_area: 4800          # Minimum bounding box area (pixels²) to filter distant objects
 
       distance:
-        use_distance_based: true  # Enable distance-based detection, use pixel-based if false
-        camera_height: 0.40       # Camera height above water surface (meters)
-        camera_tilt_deg: 45.0     # Camera tilt angle downward (degrees)
-        focal_length_y: 320.0     # Focal length fy from camera calibration
-        principal_point_y: 240.0  # Principal point cy from camera calibration
-        trigger_distance: 0.60    # Distance threshold for surface imaging (meters)
+        use_distance_based: true    # Enable distance-based measurement, use pixel-based if false
+        camera_height: 0.60         # Camera height above water surface (meters)
+        camera_tilt_deg: 45.0       # Camera tilt angle downward (degrees)
+        focal_length_y: 320.0       # Focal length fy from camera calibration (width/2)
+        principal_point_y: 240.0    # Principal point cy from camera calibration (height/2)
+        trigger_distance: 0.60      # Distance threshold for surface imaging (meters)
 
       rc:
         min_value: [1000, 1300]
@@ -37,19 +46,19 @@
 /underwater_node:
   ros__parameters:
     config:
-      camera_device: 2            # Camera device ID (0=/dev/video0, 2=/dev/video2)
-      width: 640                  # Camera resolution width
-      height: 480                 # Camera resolution height
-      fps: 20                     # Camera frame rate
-      debug: false                # Enable debug window (cv2.imshow)
-      use_lidar: false            # Enable lidar sensing
+      camera_device: 2              # Camera device ID (0=/dev/video0, 2=/dev/video2)
+      width: 640                    # Camera resolution width
+      height: 480                   # Camera resolution height
+      fps: 20                       # Camera frame rate
+      debug: false                  # Enable debug window (cv2.imshow)
+      use_lidar: false              # Enable lidar sensing
 
 /recorder_node:
   ros__parameters:
     video_dir: '/home/ubuntu/ASV-2025/recordings'   # Directory for recorded videos
 
     config:
-      camera_device: 0                              # Camera device ID (0=/dev/video0, 2=/dev/video2)   
+      camera_device: 0                              # Camera device ID (0=/dev/video0, 2=/dev/video2)
       resolution: [640, 480]                        # Camera resolution [width, height]
       fps: 20                                       # Camera frame rate
       codec: 'MJPG'                                 # Video codec (MJPG, XVID, mp4v)
