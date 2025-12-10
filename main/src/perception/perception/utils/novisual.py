@@ -7,11 +7,11 @@ class BBoxVisualization():
 
         # Distance calculation parameters (Ground-Plane Projection)
         self.use_distance_based = False
-        self.camera_height = 0.40       # H: camera height above water (meters)
+        self.camera_height = 0.60       # H: camera height above water (meters)
         self.camera_tilt_deg = 45.0     # theta: camera tilt angle (degrees)
         self.focal_length_y = 320.0     # fy: focal length in y-axis (pixels)
         self.principal_point_y = 240.0  # cy: principal point y-coordinate (pixels)
-        self.trigger_distance = 0.60    # Distance threshold for snapshot trigger (meters)
+        self.trigger_distance = 0.75    # Distance threshold for snapshot trigger (meters)
 
         # Precompute horizon line pixel
         self.v_horizon = self.principal_point_y - self.focal_length_y * np.tan(np.deg2rad(self.camera_tilt_deg))
@@ -49,7 +49,7 @@ class BBoxVisualization():
         yaw = batas_tengah
         snapshot = False
         is_finish = False
-        
+
         max_area = {
             'blue_box': 0,
             'green_box': 0,
@@ -105,17 +105,10 @@ class BBoxVisualization():
                 if cls_name in ['green_buoy', 'red_buoy'] and area < min_buoy_area:
                     continue
 
+            # Calculate distance for imaging missions
             elif mission.endswith("Imaging"):
-                if cls_name in ['green_box', 'blue_box']:
-                    if self.use_distance_based:
-                        # Ground-Plane Projection: check distance threshold
-                        distance = self.calculate_distance_groundplane(y2)
-                        if distance < self.trigger_distance:
-                            snapshot = True
-                    else:
-                        # Pixel-based: check min_box_area threshold
-                        if area >= min_box_area:
-                            snapshot = True
+                if cls_name in ['green_box', 'blue_box'] and self.use_distance_based:
+                    distance = self.calculate_distance_groundplane(y2)
 
             if cls_name in max_area and area > max_area[cls_name]:
                 max_area[cls_name] = area
@@ -125,6 +118,24 @@ class BBoxVisualization():
 
                 if distance is not None:
                     distances[cls_name] = distance
+
+        # Snapshot logic for imaging missions
+        if mission.endswith("Imaging"):
+            target_box_detected = midpoints["green_box"] or midpoints["blue_box"]
+
+            if target_box_detected is not None:
+                if self.use_distance_based:
+                    # Distance-based: check if any box is within trigger distance
+                    for box_type in ['green_box', 'blue_box']:
+                        if distances[box_type] is not None and distances[box_type] < self.trigger_distance:
+                            snapshot = True
+                            break
+                else:
+                    # Pixel-based: check if any box meets area threshold
+                    for box_type in ['green_box', 'blue_box']:
+                        if midpoints[box_type] is not None and max_area[box_type] >= min_box_area:
+                            snapshot = True
+                            break
 
         # Connection line and midpoint
         if midpoints[left_buoy] and midpoints[right_buoy]:
@@ -167,8 +178,20 @@ class BBoxVisualization():
 
         elif mission == "Docking":
             is_finish = True
+            target_dock = None
+
             if midpoints[docking] is not None:
-                a, b = midpoints[docking]
+                target_dock = midpoints[docking]
+            elif docking == "green_dock":
+                # Priority-based fallback: prefer green_dock > green_box > blue_box
+                # Arena B detection can vary between these classes
+                if midpoints["green_box"] is not None:
+                    target_dock = midpoints["green_box"]
+                elif midpoints["blue_box"] is not None:
+                    target_dock = midpoints["blue_box"]
+
+            if target_dock is not None:
+                a, b = target_dock
                 yaw = batas_bawah + a * ((batas_atas - batas_bawah) * (1/640))
         
         return frame, yaw, snapshot, is_finish

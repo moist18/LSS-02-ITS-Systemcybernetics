@@ -26,13 +26,13 @@ def generate_launch_description():
         
         # PERCEPTION PACKAGE
         
-        # Node(
-        #     package='perception',
-        #     executable='recorder.py',
-        #     name='recorder_node',
-        #     output='screen',
-        #     emulate_tty=True
-        # ),
+        Node(
+            package='perception',
+            executable='recorder.py',
+            name='recorder_node',
+            output='screen',
+            emulate_tty=True
+        ),
         
         
         # SENSOR PACKAGE

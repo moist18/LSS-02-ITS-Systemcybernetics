@@ -9,7 +9,7 @@
 
 /vision_node:
   ros__parameters:
-    model_path: '/home/ubuntu/ASV-2025/main/src/perception/perception/models/LESGOv8s_x640_rknn_model'
+    model_path: '/home/ubuntu/ASV-2025/main/src/perception/perception/models/LESGOv8s_v2_x640_rknn_model'
 
     config:
       camera_device: 0              # Camera device ID (0=/dev/video0, 2=/dev/video2)
@@ -36,7 +36,7 @@
         camera_tilt_deg: 45.0       # Camera tilt angle downward (degrees)
         focal_length_y: 320.0       # Focal length fy from camera calibration (width/2)
         principal_point_y: 240.0    # Principal point cy from camera calibration (height/2)
-        trigger_distance: 0.60      # Distance threshold for surface imaging (meters)
+        trigger_distance: 0.75      # Distance threshold for surface imaging (meters)
 
       rc:
         min_value: [1000, 1300]

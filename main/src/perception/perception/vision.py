@@ -409,7 +409,7 @@ class VisionNode(Node):
         self.handle_surface_imaging(plot_frame, snapshot)
         
         # 8. Publish compressed navigation vision streaming
-        self.publish_compressed_image(display_frame, self.navigation_vision_pub, quality=80)
+        self.publish_compressed_image(plot_frame, self.navigation_vision_pub, quality=80)
 
         return display_frame
 
