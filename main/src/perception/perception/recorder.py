@@ -12,7 +12,7 @@ class RecorderNode(Node):
         super().__init__('recorder_node')
 
         # Declare parameters
-        self.declare_parameter('video_dir', '/home/ubuntu/ASV-2025/recordings')
+        self.declare_parameter('video_dir', '/home/orin/TEKNOFEST-2026/USV-2026/main/src/perception/perception/video/')
         self.declare_parameter('config.camera_device', 0)
         self.declare_parameter('config.resolution', [640, 480])
         self.declare_parameter('config.fps', 20)

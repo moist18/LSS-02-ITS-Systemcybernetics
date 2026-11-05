@@ -4,7 +4,7 @@
   <name>sensor</name>
   <version>0.0.0</version>
   <description>sensor package</description>
-  <maintainer email="arielsulton26@gmail.com">penship</maintainer>
+  <maintainer email="lss@gmail.com">lssITS</maintainer>
   <license>MIT</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>

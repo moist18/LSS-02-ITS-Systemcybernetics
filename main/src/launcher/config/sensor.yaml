@@ -25,3 +25,14 @@
       min_point: 5      # minimum number of valid points
       min_angle: 345    # minimum angle (degrees)
       max_angle: 15     # maximum angle (degrees)
+
+/livox_node:
+  ros__parameters:
+    livox:
+      min_range: 0.5    # minimum horizontal range (meters)
+      max_range: 5.0    # maximum horizontal range (meters)
+      min_point: 10     # minimum number of valid points
+      min_angle: 345.0  # minimum angle (degrees)
+      max_angle: 15.0   # maximum angle (degrees)
+      min_height: -0.5  # minimum point height / z-axis (meters)
+      max_height: 0.5   # maximum point height / z-axis (meters)

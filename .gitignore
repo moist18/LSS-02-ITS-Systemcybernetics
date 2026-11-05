@@ -3,8 +3,23 @@
 */install/
 */log/
 
-# Recordings
+# Recordings & Media
 recordings/
+**/video/
+*.avi
+*.mp4
+
+# Python & Cache
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.bak
+
+# Node & Web
+**/node_modules/
+**/dist/
+**/.env
 
 # Reference
 **/waypoint/

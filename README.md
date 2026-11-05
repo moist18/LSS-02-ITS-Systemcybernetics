@@ -66,127 +66,136 @@ ASV-2025 is a comprehensive ROS 2 autonomous surface vehicle (ASV) system design
 
 ## System Architecture
 
-### Core Structure
+### Struktur Folder Project (Project Folder Structure)
 
-The project is organized into two main directories:
+```
+ASV-2025/
+├── docsdev/                         # Dokumentasi & riset pengembangan (Vision, LIDAR, Algoritma, perbandingan)
+│   ├── algoritm.md
+│   ├── comparison.md
+│   ├── lidar.md
+│   ├── materi.md
+│   ├── multiobjectrack.md
+│   ├── update.md
+│   └── vision_optimization.md
+├── libs/                            # Third-Party ROS 2 Packages & Dependencies
+│   └── src/
+│       ├── mavros/                  # MAVLink communication interface
+│       ├── rplidar_ros/             # Driver LIDAR Slamtec RPLidar
+│       ├── serial-ros2/             # Serial communication library
+│       └── vision_opencv/           # cv_bridge & image_geometry
+├── main/                            # Core ROS 2 Workspace Application
+│   └── src/
+│       ├── launcher/                # Package peluncur (Launch files, YAML configs, Debug scripts)
+│       │   ├── config/              # Parameter YAML (perception.yaml, sensor.yaml, navigation/, mission/)
+│       │   ├── debug/               # Bash script penguji & penganalisis mode
+│       │   ├── launch/              # Launch files ROS 2 (mission, standalone, rosbridge, mavros)
+│       │   └── legacy/              # Skrip pendukung/arsip terdahulu
+│       ├── mission/                 # Master Mission Control
+│       │   └── mission/
+│       │       └── gps_compass4_planner.cpp  # Planner state-machine navigasi utama
+│       ├── navigation/              # Pengendali Navigasi (Global & Local)
+│       │   └── navigation/
+│       │       ├── compass_nav.cpp  # Navigasi kompas/heading lokal
+│       │       ├── gps_nav.cpp      # Navigasi koordinat global (GPS Waypoints)
+│       │       └── vision_nav.cpp   # Navigasi visual reaktif (buoy / pelampung PID)
+│       ├── perception/              # Computer Vision & Pengolahan Kamera
+│       │   └── perception/
+│       │       ├── models/          # Bobot model AI NPU (RKNN model .rknn & .pt)
+│       │       ├── utils/           # Utility script & novisual helper
+│       │       ├── recorder.py      # Perekam video/frame kamera
+│       │       ├── underwater.cpp   # Pengolahan citra bawah air
+│       │       └── vision.py        # Deteksi objek YOLO terakselerasi RKNN Orange Pi 5 Pro
+│       ├── sensor/                  # Interface Sensor & Komunikasi Hardware
+│       │   └── sensor/
+│       │       ├── livox.cpp        # Interface sensor LiDAR Livox
+│       │       ├── remote.cpp       # Interface RC Remote Control
+│       │       ├── rplidar.cpp      # Pengolahan rintangan RPLidar
+│       │       └── state.cpp        # Pengawas status sistem hardware
+│       └── monitoring/              # Monitoring Kesehatan Sistem & Resource
+│           └── monitoring/
+│               ├── battery.cpp      # Monitoring tegangan daya baterai
+│               ├── cpu.cpp          # Resource CPU & suhu
+│               ├── date.py          # Sinkronisasi & waktu sistem
+│               └── gps.cpp          # Status & kualitas sinyal GPS
+├── Testing/                         # Modul pengujian model AI & dataset lokal
+│   ├── Detection.py
+│   ├── best.pt
+│   └── yolo11n.pt
+└── web_ui/                          # Interface Web Dashboard Monitoring & Control (Next.js & ROSBridge)
+    ├── src/
+    ├── public/
+    └── package.json
+```
 
-#### `libs/` - Third-Party Dependencies
-- **rplidar_ros**: LIDAR sensor integration
-- **serial**: Serial communication library
-- **vision_opencv**: Computer vision and image processing
-- **mavros**: MAVLink communication with flight controllers
-- **cv_bridge**: OpenCV-ROS 2 bridge for image processing
-
-#### `main/src/` - Application Packages
-- **launcher**: Central launch configuration and parameter management
-- **mission**: High-level mission planning and execution
-- **navigation**: GPS and vision-based navigation controllers
-- **perception**: Computer vision and sensor data processing
-- **sensor**: Hardware interface controllers
-- **monitoring**: System health monitoring
+---
 
 ## Package Details
 
-### 1. Mission Package
+### 1. Mission Package (`main/src/mission`)
 
 **Core Components**: 
-- `gps_rtk_planner.cpp`: GPS RTK-based mission planning and execution
-- `gps_vision_planner.cpp`: Vision-integrated mission planning
+- `gps_compass4_planner.cpp`: State-machine pengendali urutan misi (Global Planner).
 
 **Functionality**:
-- RTK GPS-based mission execution with high precision positioning
-- Supports dual trajectory modes (A/B) for different mission profiles
-- Modern ROS2 parameter system with dotted notation
-- Handles mission state transitions through waypoint progression
+- Mengoordinasikan fasa navigasi (*Floating Ball*, *Surface Imaging*, *Underwater Imaging*).
+- Mengontrol perpindahan mode otomatis antar modul `gps_nav`, `compass_nav`, dan `vision_nav`.
+- Berkomunikasi via ROS 2 topic `/robot/mission`, `/robot/control/*`, dan `/robot/setmode`.
 
-**Key Features**:
-- Modern C++ patterns with `this->` convention
-- ROS2 parameter system replacing YAML file reading
-- Real-time mission state publishing
-- Multi-phase mission execution with configurable waypoints
+---
 
-**Mission Phases**:
-- **RTK GPS Navigation**: High-precision waypoint following
-- **Vision Integration**: Combined GPS and vision-based navigation
-- **Multi-trajectory Support**: Configurable A/B mission profiles
-- **Parameter-driven**: ROS2 parameter system with dotted notation
-
-### 2. Navigation Package
+### 2. Navigation Package (`main/src/navigation`)
 
 **Core Components**:
-- `gps_nav.cpp`: GPS waypoint navigation with configurable radius tolerance
-- `vision_nav.cpp`: Vision-based navigation and control
+- `gps_nav.cpp`: Navigasi Waypoint GPS Global (Haversine distance calculation & setpoint global).
+- `compass_nav.cpp`: Navigasi penyesuaian sudut orientasi (heading kompas lokal).
+- `vision_nav.cpp`: Navigasi visual reaktif berbasis PID override kontrol RC untuk mengunci buoy.
 
-**Functionality**:
-- GPS waypoint navigation with configurable radius tolerance
-- ROS2 parameter system with dotted notation (`navigation.waypoints_A.count`)
-- Haversine distance calculation for precise positioning
-- Vision-based navigation integration
+---
 
-**Key Features**:
-- Support for dual trajectory configurations (A/B)
-- Modern C++ patterns with `this->` convention
-- Real-time distance and waypoint status reporting
-- Parameter-driven configuration system
-
-### 3. Perception Package
+### 3. Perception Package (`main/src/perception`)
 
 **Core Components**:
-- `vision.py`: RKNN-optimized YOLO object detection with multi-threading
-- `surface.cpp`: Surface imaging and processing
-- `underwater.cpp`: Underwater imaging and processing
+- `vision.py`: Pengolah deteksi YOLO terakselerasi NPU RKNN (Orange Pi 5 Pro) dengan arsitektur multi-thread.
+- `underwater.cpp`: Pengolahan citra bawah air (*underwater capture/imaging*).
+- `recorder.py`: Module perekam stream video dari kamera.
+- `models/`: Kumpulan model terkompilasi RKNN (`LESGO11m`, `LESGOv8s`, dll).
 
-**Functionality**:
-- **RKNN-Accelerated Vision**: Multi-threaded YOLO detection utilizing Orange Pi 5 Pro NPU
-- **Real-time Processing**: 3x parallel model instances with frame buffering
-- **PID-controlled Navigation**: Vision-based RC override with configurable parameters
-- **Multi-mission Support**: Floating Ball, Surface/Underwater Imaging, Docking modes
+---
 
-**Key Features**:
-- **NPU Optimization**: Full utilization of 3 NPU cores for maximum performance
-- **Threading Architecture**: Separate worker threads for each model instance
-- **Configurable Detection**: Runtime-adjustable confidence, IoU, and image size parameters
-- **Model Warm-up**: Cold start reduction for consistent performance
-- **Professional Logging**: Comprehensive performance monitoring and error handling
-- **Camera Optimization**: MJPEG codec with minimal buffering for low latency
+### 4. Sensor Package (`main/src/sensor`)
 
-### 4. Sensor Package
+**Core Components**:
+- `rplidar.cpp`: Pengolahan data scan 2D RPLidar untuk rintangan.
+- `livox.cpp`: Interface pemprosesan LiDAR 3D Livox.
+- `remote.cpp`: Handler masukan transmiter remote control RC.
+- `state.cpp`: Pengawas status telemetri hardware.
 
-**Components**:
-- **arduino.cpp**: Enhanced Arduino integration with professional waypoint management
-- **rplidar.cpp**: LIDAR data processing and obstacle detection
-- **state.cpp**: System state monitoring and reporting
-- **compass.cpp**: Compass-based heading control
-- **gps.cpp**: GPS coordinate processing
+---
 
-**Arduino Integration Features**:
-- **Timestamped Waypoint Files**: Automatic generation of `waypoints_YYYYMMDD_HHMMSS.txt`
-- **YAML Structure Output**: Professional waypoint format with navigation hierarchy
-- **Clean Serial Communication**: Simplified and maintainable code structure
-- **Future-Ready Design**: No data range restrictions for additional sensors
-- **Robust Error Handling**: Professional logging and exception management
+### 5. Monitoring Package (`main/src/monitoring`)
 
-### 5. Monitoring Package
+**Core Components**:
+- `battery.cpp`: Monitoring tegangan dan daya baterai.
+- `cpu.cpp`: Resource usage CPU dan temperatur sistem.
+- `gps.cpp`: Monitoring status dan presisi koordinat GPS.
+- `date.py`: Publisher waktu dan tanggal sistem.
 
-**Components**:
-- **battery.cpp**: Power management and voltage monitoring
-- **cpu.cpp**: System resource monitoring
-- **gps.cpp**: GPS signal quality and status
-- **date.py**: System date/time publishing (converted from C++)
+---
 
-### 6. Launcher Package
+### 6. Launcher Package (`main/src/launcher`)
 
-**Configuration Management**:
-- **mission.yaml**: Mission waypoints and phase timing configuration
-- **sensor.yaml**: Hardware interface parameters
-- **vision.yaml**: Computer vision and PID control parameters
+**Configuration & Launch**:
+- **config/**: File konfigurasi YAML untuk navigasi, sensor, persepsi, dan misi.
+- **launch/**: Skrip peluncur utama (`mission/gps_compass4.launch.py`, `mission/gps_vision.launch.py`, `rosbridge.launch.py`, `mavros.launch.py`).
+- **debug/**: Script debugging bash untuk pengujian manual.
 
-**Launch Files**:
-- **mission.launch.py**: Complete system launch with all components
-- **mavros.launch.py**: MAVLink communication setup
-- **vision.launch.py**: Vision processing components
-- **rplidar.launch.py**: LIDAR sensor initialization
-- **remote.launch.py**: RC input handling
+---
+
+### 7. Web UI Dashboard (`web_ui`)
+
+**Dashboard Monitoring & Telemetri Web**:
+- Aplikasi berbasis **Next.js & ROSBridge Web Socket** untuk pemantauan posisi kapal, status baterai, feed kamera, dan kontrol mode secara real-time dari web browser.
 
 ## Communication Architecture
 
