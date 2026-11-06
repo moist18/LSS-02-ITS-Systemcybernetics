@@ -1,8 +1,8 @@
-# ASV-2025 Project Documentation
+# Project Documentation
 
 ## Project Overview
 
-ASV-2025 is a comprehensive ROS 2 autonomous surface vehicle (ASV) system designed for competitive robotics applications. The system provides integrated navigation, perception, and mission planning capabilities for autonomous operation in marine environments.
+LSS-02 is a comprehensive ROS 2 autonomous surface vehicle (ASV) system designed for competitive robotics applications. The system provides integrated navigation, perception, and mission planning capabilities for autonomous operation in marine environments.
 
 ## Technology Stack
 
