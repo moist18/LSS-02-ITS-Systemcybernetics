@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTelemetry } from '../context/TelemetryContext';
 
 export default function Header({
   darkMode,
@@ -8,6 +9,9 @@ export default function Header({
   onAddTelemetry,
   notificationsCount = 3
 }) {
+  const { isConnected, telemetry } = useTelemetry();
+  const mode = telemetry?.mode || 'MANUAL';
+
   return (
     <header className="px-8 pt-6 pb-4 flex flex-wrap items-center justify-between gap-4">
       {/* Left: Voice / ROS Command Pill & Sub-tabs */}
@@ -33,7 +37,7 @@ export default function Header({
 
         <div className="hidden lg:flex items-center gap-4 text-xs font-semibold">
           <button
-            onClick={() => alert("Control panel overview opened.")}
+            onClick={() => alert(`Cockpit Control Overview:\nMode: ${mode}\nBackend Link: ${isConnected ? 'Connected (Port 8000)' : 'Disconnected'}\nHeading: ${telemetry?.navigation?.heading_label || '214° SW'}`)}
             className="text-slate-800 dark:text-slate-200 hover:text-black dark:hover:text-white transition-colors"
           >
             Control panel
@@ -47,8 +51,21 @@ export default function Header({
         </div>
       </div>
 
-      {/* Right: Light/Dark Pill, Notification Bell, User Pill, Date Badge */}
+      {/* Right: Backend Link Pill, Light/Dark Pill, Notification Bell, User Pill, Date Badge */}
       <div className="flex items-center gap-3">
+        {/* Live Backend Connection Indicator */}
+        <div 
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-mono border shadow-cockpit transition-colors ${
+            isConnected 
+              ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300'
+              : 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/60 text-rose-700 dark:text-rose-300'
+          }`}
+          title={isConnected ? "Connected to FastAPI ROS 2 Gateway (ws://localhost:8000/ws/telemetry)" : "Waiting for backend on port 8000"}
+        >
+          <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+          <span className="font-bold">{isConnected ? 'ROS2 LIVE' : 'BACKEND OFFLINE'}</span>
+        </div>
+
         {/* Light / Dark Switch Pill */}
         <div className="flex items-center bg-white dark:bg-[#1a1f29] p-1 rounded-full shadow-cockpit border border-slate-200/60 dark:border-slate-800 text-xs font-medium transition-colors">
           <button

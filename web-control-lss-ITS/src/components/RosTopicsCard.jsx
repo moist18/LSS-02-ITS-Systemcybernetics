@@ -1,25 +1,34 @@
 import React, { useState } from 'react';
+import { useTelemetry } from '../context/TelemetryContext';
 
 export default function RosTopicsCard({ searchQuery = '' }) {
+  const { topics, isConnected, telemetry } = useTelemetry();
   const [activeTab, setActiveTab] = useState('Live'); // 'Live' | 'Filtered' | 'Alerts'
   const [favorites, setFavorites] = useState(['/yolo_detector']);
+
+  const surge = telemetry?.navigation?.surge_velocity ?? 1.45;
+  const yawRate = telemetry?.navigation?.yaw_rate ?? -0.04;
+  const targetName = telemetry?.detections?.active_target ?? 'Buoy_04';
+  const targetConf = telemetry?.detections?.confidence ?? 0.94;
+  const batVolts = telemetry?.battery?.voltage ?? 25.2;
+  const batPct = telemetry?.battery?.percentage ?? 96.0;
 
   const initialTopics = [
     {
       id: '/cmd_vel',
       name: '/cmd_vel',
-      detail: 'Linear: 1.45 m/s • Yaw: -0.04',
-      hz: '100 Hz',
-      latency: '12ms',
+      detail: `Linear: ${surge.toFixed(2)} m/s • Yaw: ${yawRate.toFixed(2)}`,
+      hz: `${topics?.['/cmd_vel']?.hz?.toFixed(1) || '100.0'} Hz`,
+      latency: `${topics?.['/cmd_vel']?.latency_ms?.toFixed(0) || '12'}ms`,
       icon: 'navigation',
       iconBg: 'bg-sky-50 dark:bg-sky-950/50 text-sky-600 dark:text-sky-400',
     },
     {
       id: '/yolo_detector',
       name: '/yolo_detector',
-      detail: 'Buoy_04 target conf=0.94',
-      hz: '30 Hz',
-      latency: '18ms',
+      detail: `${targetName} target conf=${targetConf.toFixed(2)}`,
+      hz: `${topics?.['/yolo_detector']?.hz?.toFixed(1) || '30.0'} Hz`,
+      latency: `${topics?.['/yolo_detector']?.latency_ms?.toFixed(0) || '18'}ms`,
       icon: 'radar',
       iconBg: 'bg-slate-900 dark:bg-sky-500 text-white',
       isActiveHighlight: true,
@@ -27,18 +36,18 @@ export default function RosTopicsCard({ searchQuery = '' }) {
     {
       id: '/odom_filtered',
       name: '/odom_filtered',
-      detail: 'Pose x=14.28 y=-84.10',
-      hz: '50 Hz',
-      latency: '08ms',
+      detail: `Lat=${telemetry?.navigation?.latitude?.toFixed(4) || '-7.2825'} Lon=${telemetry?.navigation?.longitude?.toFixed(4) || '112.7953'}`,
+      hz: `${topics?.['/odom_filtered']?.hz?.toFixed(1) || '50.0'} Hz`,
+      latency: `${topics?.['/odom_filtered']?.latency_ms?.toFixed(0) || '8'}ms`,
       icon: 'explore',
       iconBg: 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300',
     },
     {
       id: '/sonar_bathymetry',
       name: '/sonar/bathymetry_raw',
-      detail: 'Chirp 200kHz bottom echo',
-      hz: '20 Hz',
-      latency: '15ms',
+      detail: `Depth: ${telemetry?.sonar?.depth_meters?.toFixed(2) || '4.85'}m • Chirp 200kHz`,
+      hz: `${topics?.['/sonar/bathymetry_raw']?.hz?.toFixed(1) || '20.0'} Hz`,
+      latency: `${topics?.['/sonar/bathymetry_raw']?.latency_ms?.toFixed(0) || '15'}ms`,
       icon: 'water',
       iconBg: 'bg-teal-50 dark:bg-teal-950/50 text-teal-600 dark:text-teal-400',
       alert: true,
@@ -46,9 +55,9 @@ export default function RosTopicsCard({ searchQuery = '' }) {
     {
       id: '/battery_state',
       name: '/sensors/battery_state',
-      detail: '25.2V • 96% • LiPo 6S',
-      hz: '10 Hz',
-      latency: '04ms',
+      detail: `${batVolts}V • ${batPct}% • LiPo 6S`,
+      hz: `${topics?.['/sensors/battery_state']?.hz?.toFixed(1) || '10.0'} Hz`,
+      latency: `${topics?.['/sensors/battery_state']?.latency_ms?.toFixed(0) || '4'}ms`,
       icon: 'bolt',
       iconBg: 'bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400',
     }
@@ -178,10 +187,14 @@ export default function RosTopicsCard({ searchQuery = '' }) {
       </div>
 
       <div className="pt-2 mt-2 flex items-center justify-between text-[11px] text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800/60">
-        <span className="font-medium text-slate-600 dark:text-slate-400">18 Nodes Active</span>
-        <span className="font-mono text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-          ws://localhost:9090 connected
+        <span className="font-medium text-slate-600 dark:text-slate-400">ROS 2 Humble • LSS-02</span>
+        <span className={`font-mono text-[10px] flex items-center gap-1.5 ${
+          isConnected ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-500'
+        }`}>
+          <span className={`w-1.5 h-1.5 rounded-full ${
+            isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
+          }`}></span>
+          {isConnected ? 'ws://localhost:8000/ws/telemetry active' : 'ws://localhost:8000 reconnecting...'}
         </span>
       </div>
     </div>

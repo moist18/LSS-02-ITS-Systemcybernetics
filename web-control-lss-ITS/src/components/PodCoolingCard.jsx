@@ -1,7 +1,16 @@
 import React, { useState } from 'react';
+import { useTelemetry } from '../context/TelemetryContext';
 
 export default function PodCoolingCard() {
+  const { telemetry } = useTelemetry();
   const [coolingActive, setCoolingActive] = useState(true);
+
+  const env = telemetry?.environment || {};
+  const baseTemp = env.pod_temp_c ?? 36.2;
+  const currentTemp = coolingActive ? baseTemp : baseTemp + 12.0;
+
+  const fanRpm = coolingActive ? 2400 : 800;
+  const pumpPct = coolingActive ? 85 : 20;
 
   return (
     <div className="bg-white dark:bg-[#151921] rounded-3xl p-4 shadow-cockpit border border-slate-200/50 dark:border-slate-800 flex flex-col gap-2 transition-colors">
@@ -9,7 +18,7 @@ export default function PodCoolingCard() {
         <div>
           <h3 className="text-xs font-bold text-slate-900 dark:text-white">Pod Cooling</h3>
           <p className="text-[10px] text-slate-400 dark:text-slate-500">
-            Jetson Orin: {coolingActive ? '46°C' : '58°C'}
+            Jetson Orin: <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{currentTemp.toFixed(1)}°C</span>
           </p>
         </div>
         {/* Mini toggle */}
@@ -37,7 +46,7 @@ export default function PodCoolingCard() {
             ></div>
           </div>
           <span className="font-mono text-slate-800 dark:text-slate-200 font-bold w-10 text-right">
-            {coolingActive ? '2,400' : '800'}
+            {fanRpm.toLocaleString()}
           </span>
         </div>
 
@@ -52,7 +61,7 @@ export default function PodCoolingCard() {
             ></div>
           </div>
           <span className="font-mono text-slate-800 dark:text-slate-200 font-bold w-10 text-right">
-            {coolingActive ? '85%' : '20%'}
+            {pumpPct}%
           </span>
         </div>
       </div>

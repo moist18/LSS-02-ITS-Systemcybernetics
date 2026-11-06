@@ -22,8 +22,10 @@ struct WayPoint {
 
 class GPSNavigation : public rclcpp::Node {
 public:
-    GPSNavigation()
-        : Node("gps_navigation") {
+    GPSNavigation(const rclcpp::NodeOptions & options = rclcpp::NodeOptions())
+        : Node("gps_navigation", rclcpp::NodeOptions(options)
+            .allow_undeclared_parameters(true)
+            .automatically_declare_parameters_from_overrides(true)) {
 
         // Parameter Declaration
         this->declare_parameter<double>("navigation.radius", 2.0);
@@ -74,18 +76,19 @@ private:
 
         try {
             // Get the number of waypoints
-            int count = this->get_parameter(prefix + ".count").as_int();
+            int count = 0;
+            this->get_parameter_or(prefix + ".count", count, 0);
 
             // Load each waypoint
             for (int i = 0; i < count; ++i) {
                 std::string wp_prefix = prefix + ".waypoint_" + std::to_string(i);
                 WayPoint wp;
-                wp.latitude = this->get_parameter(wp_prefix + ".latitude").as_double();
-                wp.longitude = this->get_parameter(wp_prefix + ".longitude").as_double();
-                wp.altitude = this->get_parameter(wp_prefix + ".altitude").as_double();
+                this->get_parameter_or(wp_prefix + ".latitude", wp.latitude, 0.0);
+                this->get_parameter_or(wp_prefix + ".longitude", wp.longitude, 0.0);
+                this->get_parameter_or(wp_prefix + ".altitude", wp.altitude, 0.0);
                 waypoints.push_back(wp);
             }
-        } catch (const rclcpp::ParameterTypeException& e) {
+        } catch (const std::exception& e) {
             RCLCPP_ERROR(this->get_logger(), "GPS-NAV → Failed to load waypoints for trajectory %s: %s", trajectory.c_str(), e.what());
         }
 
@@ -93,7 +96,7 @@ private:
     }
 
     void load_parameter() {
-        this->radius = this->get_parameter("navigation.radius").as_double();
+        this->get_parameter_or("navigation.radius", this->radius, 2.0);
         this->waypoints_A = load_waypoints("A");
         this->waypoints_B = load_waypoints("B");
     }

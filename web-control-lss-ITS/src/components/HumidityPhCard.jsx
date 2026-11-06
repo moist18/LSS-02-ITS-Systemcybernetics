@@ -1,25 +1,37 @@
 import React from 'react';
-
-const sensors = [
-  {
-    label: 'Humidity',
-    value: '68%',
-    level: '68%',
-    icon: 'humidity_high',
-    iconClass: 'bg-sky-50 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400',
-    barClass: 'bg-sky-500',
-  },
-  {
-    label: 'pH Sensor',
-    value: '7.82',
-    level: '56%',
-    icon: 'science',
-    iconClass: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400',
-    barClass: 'bg-emerald-500',
-  },
-];
+import { useTelemetry } from '../context/TelemetryContext';
 
 export default function HumidityPhCard() {
+  const { telemetry } = useTelemetry();
+  const env = telemetry?.environment || {};
+
+  const humidityVal = env.humidity_percent ?? 68.5;
+  const phVal = env.ph_level ?? 7.82;
+
+  // Calculate relative levels for visualization
+  const humidityPct = Math.min(100, Math.max(0, humidityVal));
+  // pH 0-14, centered around neutral 7
+  const phPct = Math.min(100, Math.max(0, (phVal / 14) * 100));
+
+  const sensors = [
+    {
+      label: 'Humidity',
+      value: `${humidityVal.toFixed(1)}%`,
+      level: `${humidityPct}%`,
+      icon: 'humidity_high',
+      iconClass: 'bg-sky-50 text-sky-600 dark:bg-sky-950/50 dark:text-sky-400',
+      barClass: 'bg-sky-500',
+    },
+    {
+      label: 'pH Sensor',
+      value: phVal.toFixed(2),
+      level: `${phPct}%`,
+      icon: 'science',
+      iconClass: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400',
+      barClass: 'bg-emerald-500',
+    },
+  ];
+
   return (
     <div className="bg-white dark:bg-[#151921] rounded-3xl p-4 shadow-cockpit border border-slate-200/50 dark:border-slate-800 flex flex-col gap-2 transition-colors">
       <div className="flex items-center justify-between">

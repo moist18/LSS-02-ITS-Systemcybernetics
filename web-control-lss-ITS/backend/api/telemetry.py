@@ -14,6 +14,7 @@ router = APIRouter(prefix="/api/telemetry", tags=["Telemetry"])
 
 
 @router.get("/", response_model=Dict[str, Any])
+@router.get("/overview", response_model=Dict[str, Any])
 async def get_full_telemetry():
     """Returns complete real-time vehicle telemetry snapshot."""
     return ros_subscriber.get_telemetry()

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import * as maptilersdk from '@maptiler/sdk';
 import '@maptiler/sdk/dist/maptiler-sdk.css';
+import { useTelemetry } from '../context/TelemetryContext';
 
 // Coordinates for the active mission area.
 // MapTiler expects coordinates in [longitude, latitude] order.
@@ -45,9 +46,22 @@ const ROUTE_GEOJSON = {
 const MAPTILER_API_KEY = import.meta.env.VITE_MAPTILER_API_KEY || 'el2TG0a2d25RjhVq8HYL';
 
 export default function LocationLiveCard() {
+  const { telemetry } = useTelemetry();
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
+
+  // Live telemetry dynamic values
+  const lat = (telemetry?.navigation?.latitude ?? USV_LAT).toFixed(6);
+  const lon = (telemetry?.navigation?.longitude ?? USV_LON).toFixed(6);
+  const spdKnots = (telemetry?.navigation?.knots ?? 2.84).toFixed(2);
+  const hdg = (telemetry?.navigation?.heading_deg ?? 214.0).toFixed(1);
+  const batteryPct = Math.round(telemetry?.battery?.percentage ?? 96);
+  const targetName = telemetry?.detections?.active_target ?? 'BUOY-04';
+  const targetConf = Math.round((telemetry?.detections?.confidence ?? 0.94) * 100);
+  const targetDist = (telemetry?.detections?.target_distance_m ?? 18.4).toFixed(1);
+  const missionProg = telemetry?.mission?.progress_percent ?? 68;
+  const mode = telemetry?.mode ?? 'MANUAL';
 
   // 'nav' = Tactical Navigation (Dark), 'map' = Bathymetry Ocean, 'video' = Satellite Hybrid
   const [viewMode, setViewMode] = useState('map');
@@ -369,21 +383,21 @@ export default function LocationLiveCard() {
         {hudVisible && (
           <>
             <div className="absolute top-2 left-12 text-[7.5px] font-mono text-white/80 leading-tight pointer-events-none hidden sm:block drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-              <div className="font-bold text-sky-300">LSS-02 ASV | OP-ALPHA | ACTIVE</div>
-               <div>LAT: {USV_LAT}° | LON: {USV_LON}° | SPD: 2.84 KTS</div>
-              <div className="text-white/60 pt-0.5">PROPULSION: 96%</div>
+              <div className="font-bold text-sky-300">LSS-02 ASV | OP-ALPHA | {mode}</div>
+              <div>LAT: {lat}° | LON: {lon}° | SPD: {spdKnots} KTS</div>
+              <div className="text-white/60 pt-0.5">PROPULSION: {batteryPct}%</div>
               <div className="text-white/60">COMM: SECURE (SATCOM)</div>
               <div className="text-white/60">DEPTH CONTOUR: 15m - 45m</div>
               <div className="text-white/60">ENGINEERING: ONLINE</div>
             </div>
 
             <div className="absolute top-2 right-3 text-[7.5px] font-mono text-white/80 leading-tight text-right pointer-events-none hidden sm:block drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
-              <div>UTC: 04:38:12</div>
+              <div>HDG: {hdg}° | MODE: {mode}</div>
               <div>TIDE: EBB | SEA STATE: 4 | WX: CLEAR</div>
-              <div className="text-white/60 pt-0.5">DISTANCE TO WP: 18.42m</div>
-              <div className="text-white/60">BEARING: 218.2°</div>
-              <div className="text-rose-300 font-bold">TARGET LOCKED: T-05</div>
-              <div className="text-white/60">NAV: AUTO-PILOT</div>
+              <div className="text-white/60 pt-0.5">DISTANCE TO WP: {targetDist}m</div>
+              <div className="text-white/60">BEARING: {hdg}°</div>
+              <div className="text-rose-300 font-bold">TARGET: {targetName} ({targetConf}%)</div>
+              <div className="text-white/60">NAV: {mode}</div>
               <div className="text-white/60">NEXT TURN: 0.8 nm</div>
               <div className="text-white/60">ROUTE: ALPHA-4</div>
             </div>
@@ -437,7 +451,7 @@ export default function LocationLiveCard() {
         {/* Detection Badge Overlay in top right on mobile / floating */}
         <div className="absolute top-3 right-3 sm:right-32 bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-full text-white text-[9.5px] font-mono flex items-center gap-1.5 border border-white/10 shadow-lg z-20">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>BUOY-04 [94%] • 18.4m</span>
+          <span>{targetName} [{targetConf}%] • {targetDist}m</span>
         </div>
 
         {/* Floating Waypoint Marker Tag (Clickable to focus WP-02) */}
@@ -474,11 +488,14 @@ export default function LocationLiveCard() {
             Harbor Station North <span className="font-normal text-slate-400 dark:text-slate-500 ml-1">5.1 km</span>
           </span>
           <span className="font-mono text-slate-700 dark:text-slate-300">
-             Lat {USV_LAT}°, Lon {USV_LON}° <span className="font-bold text-sky-600 dark:text-sky-400 ml-1">09 min</span>
+             Lat {lat}°, Lon {lon}° <span className="font-bold text-sky-600 dark:text-sky-400 ml-1">09 min</span>
           </span>
         </div>
         <div className="relative w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-          <div className="bg-slate-900 dark:bg-slate-200 h-full w-[68%] rounded-full relative transition-all duration-500">
+          <div 
+            className="bg-slate-900 dark:bg-slate-200 h-full rounded-full relative transition-all duration-500"
+            style={{ width: `${Math.max(10, Math.min(100, missionProg))}%` }}
+          >
             <div className="absolute right-0 top-0 bottom-0 w-2.5 bg-sky-400 rounded-full shadow-[0_0_8px_#38bdf8]"></div>
           </div>
         </div>

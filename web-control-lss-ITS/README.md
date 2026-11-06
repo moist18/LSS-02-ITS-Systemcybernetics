@@ -28,6 +28,15 @@ Sistem Antarmuka **Oceanic Telemetry & Autonomous Surface Control (USV / ASV)** 
 
 ```text
 control-lss-ITS/
+├── backend/                    # FastAPI Backend Gateway & ROS 2 Humble Integration
+│   ├── main.py                 # Entry point FastAPI & Lifespan handler
+│   ├── config.py               # Pengaturan port, batas aman, dan ROS config
+│   ├── requirements.txt        # Dependensi Python backend
+│   ├── start_backend.sh        # Script launcher otomatis backend & environment ROS 2
+│   ├── api/                    # REST API (telemetri, kontrol, misi, konfigurasi)
+│   ├── ros/                    # Integrasi ROS 2 (publisher, subscriber, param, connection)
+│   ├── services/               # Layanan bisnis & keamanan (SIL-3 watchdog, mission)
+│   └── websocket/              # WebSocket broadcaster telemetri real-time
 ├── index.html                  # HTML entry point dengan font preloading (Jakarta Sans, JetBrains Mono)
 ├── package.json                # Dependensi proyek & NPM scripts
 ├── postcss.config.js           # PostCSS configuration
@@ -41,18 +50,21 @@ control-lss-ITS/
     ├── main.jsx                # React root mount point
     ├── App.jsx                 # Main cockpit layout (Grid 12-kolom & integrasi state)
     ├── index.css               # Base styling, custom scrollbars, dan range sliders
+    ├── context/                # React Context untuk telemetri & WebSocket backend
+    │   └── TelemetryContext.jsx
     └── components/             # Komponen modular UI
         ├── Sidebar.jsx             # Navigasi vertikal gelap kokpit kiri
         ├── Header.jsx              # Bar atas, ROS search, dark/light switch, profil
         ├── LocationLiveCard.jsx    # Feed kamera POV, peta kontur batimetri, & HUD
         ├── EmergencyCard.jsx       # Switch keamanan instan SIL-3 Disarm
-        ├── WeatherCard.jsx         # Waypoint list & konfigurasi path planning via ROSBridge
+        ├── WeatherCard.jsx         # Waypoint list & konfigurasi path planning
         ├── PodCoolingCard.jsx      # Thermal Jetson Orin, fan speed, & pompa pendingin
         ├── RosTopicsCard.jsx       # Tabel feed live topik ROS 2 (/cmd_vel, /yolo, dll)
         ├── SonarPlayerCard.jsx     # Pemutar akustik Chirp Sonar 200kHz & visualizer
         ├── BaseGatewayCard.jsx     # Status koneksi menara pemancar darat (gateway)
         ├── PowerBankCard.jsx       # Telemetri baterai LiPo, tegangan, daya jangkau
         ├── ThrustHeadingCard.jsx   # Kontrol slider surge speed & RPM dual thruster
+        ├── HumidityPhCard.jsx      # Sensor kualitas air (kelembapan & pH)
         └── AddTelemetryModal.jsx   # Dialog modal untuk menambahkan stream topik ROS
 ```
 
@@ -137,30 +149,82 @@ control-lss-ITS/
 
 ## 💻 Panduan Menjalankan Aplikasi
 
-### Kebutuhan Sistem:
+Aplikasi ini terdiri dari dua bagian utama: **Backend Gateway (FastAPI + ROS 2)** dan **Frontend Cockpit (React + Vite)**.
+
+---
+
+### A. Menjalankan Backend (FastAPI & ROS 2 Gateway)
+
+Backend bertindak sebagai jembatan antara antarmuka web dan subsistem ROS 2 Humble USV LSS-02 melalui REST API dan WebSocket telemetri real-time.
+
+#### 1. Kebutuhan Sistem Backend:
+- **Python**: v3.10 atau yang lebih baru
+- **ROS 2**: Humble Hawksbill *(opsional, otomatis fallback ke mode simulasi jika tidak terpasang)*
+- **pip** paket manajer Python
+
+#### 2. Instalasi Dependensi Backend:
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+#### 3. Menjalankan Backend Server:
+
+- **Cara Cepat (Rekomendasi - Otomatis ROS 2 & Fallback):**
+  Jalankan shell script yang otomatis mendeteksi environment ROS 2 Humble dan mengeksekusi FastAPI:
+  ```bash
+  cd backend
+  ./start_backend.sh
+  ```
+  *(Pastikan script memiliki izin eksekusi: `chmod +x start_backend.sh`)*
+
+- **Cara Manual dengan ROS 2 Humble:**
+  ```bash
+  cd backend
+  source /opt/ros/humble/setup.bash
+  /usr/bin/python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+  ```
+
+- **Cara Manual Mode Standalone / Simulasi (Tanpa ROS 2):**
+  ```bash
+  cd backend
+  python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+  ```
+
+#### 4. Dokumentasi API & Endpoint Backend:
+Setelah backend aktif di port `8000`:
+- **Swagger Interactive API**: 👉 [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc Documentation**: 👉 [http://localhost:8000/redoc](http://localhost:8000/redoc)
+- **WebSocket Telemetry Stream**: `ws://localhost:8000/ws/telemetry`
+
+---
+
+### B. Menjalankan Frontend (React Cockpit)
+
+#### 1. Kebutuhan Sistem Frontend:
 - **Node.js**: v18.0.0 atau yang lebih baru
 - **NPM**: v9.0.0 atau yang lebih baru
 
-### 1. Instalasi Dependensi
-Jika Anda baru mengkloning atau ingin memperbarui pustaka dependensi:
+#### 2. Instalasi Dependensi Frontend:
+Kembali ke root direktori frontend (`web-control-lss-ITS/`) lalu instal dependensi Node:
 ```bash
 npm install
 ```
 
-### 2. Menjalankan Server Pengembangan (Dev)
+#### 3. Menjalankan Server Pengembangan (Dev Mode):
 ```bash
 npm run dev
 ```
-Setelah berjalan, buka browser di alamat:
-👉 **`http://localhost:3000`**
+Buka browser di alamat:
+👉 **`http://localhost:3000`** *(atau URL yang ditampilkan pada terminal)*
 
-### 3. Membangun Proyek untuk Produksi (Production Build)
+#### 4. Membangun Proyek untuk Produksi (Production Build):
 ```bash
 npm run build
 ```
 Hasil kompilasi dan optimasi berkas akan disimpan di dalam direktori `dist/`.
 
-### 4. Meninjau Hasil Build (Preview)
+#### 5. Meninjau Hasil Build (Preview):
 ```bash
 npm run preview
 ```

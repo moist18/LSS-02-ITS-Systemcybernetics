@@ -91,17 +91,47 @@ export function TelemetryProvider({ children }) {
   const reconnectTimeoutRef = useRef(null);
   const heartbeatIntervalRef = useRef(null);
 
-  // Dynamic host determination: supports both localhost & LAN IP access
+  // Dynamic host determination: supports both localhost & LAN IP access, and env override
   const getBackendBaseUrl = useCallback(() => {
+    if (import.meta.env.VITE_BACKEND_URL) {
+      return import.meta.env.VITE_BACKEND_URL;
+    }
     const host = window.location.hostname || 'localhost';
     return `http://${host}:8000`;
   }, []);
 
   const getWebSocketUrl = useCallback(() => {
+    if (import.meta.env.VITE_WS_URL) {
+      return import.meta.env.VITE_WS_URL;
+    }
     const host = window.location.hostname || 'localhost';
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     return `${protocol}//${host}:8000/ws/telemetry`;
   }, []);
+
+  // Initial HTTP fetch to prime state immediately
+  const fetchInitialTelemetry = useCallback(async () => {
+    try {
+      const res = await fetch(`${getBackendBaseUrl()}/api/telemetry/overview`);
+      if (res.ok) {
+        const data = await res.json();
+        setTelemetry((prev) => ({
+          ...prev,
+          ...data,
+          navigation: { ...prev.navigation, ...(data.navigation || {}) },
+          thrusters: { ...prev.thrusters, ...(data.thrusters || {}) },
+          battery: { ...prev.battery, ...(data.battery || {}) },
+          environment: { ...prev.environment, ...(data.environment || {}) },
+          sonar: { ...prev.sonar, ...(data.sonar || {}) },
+          detections: { ...prev.detections, ...(data.detections || {}) },
+          mission: { ...prev.mission, ...(data.mission || {}) },
+          subsystems: { ...prev.subsystems, ...(data.subsystems || {}) },
+        }));
+      }
+    } catch {
+      // Backend not yet reachable via HTTP
+    }
+  }, [getBackendBaseUrl]);
 
   // Connect WebSocket
   const connectWebSocket = useCallback(() => {
@@ -176,13 +206,14 @@ export function TelemetryProvider({ children }) {
   }, [getWebSocketUrl]);
 
   useEffect(() => {
+    fetchInitialTelemetry();
     connectWebSocket();
     return () => {
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
       if (wsRef.current) wsRef.current.close();
     };
-  }, [connectWebSocket]);
+  }, [connectWebSocket, fetchInitialTelemetry]);
 
   // REST Control Actions
   const toggleEmergency = useCallback(async (disarm) => {
@@ -280,6 +311,19 @@ export function TelemetryProvider({ children }) {
     }
   }, [getBackendBaseUrl]);
 
+  const loadWaypoints = useCallback(async (waypoints) => {
+    try {
+      const res = await fetch(`${getBackendBaseUrl()}/api/mission/waypoints`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ waypoints }),
+      });
+      return await res.json();
+    } catch (e) {
+      console.error('Failed to load waypoints:', e);
+    }
+  }, [getBackendBaseUrl]);
+
   const value = {
     telemetry,
     topics,
@@ -293,6 +337,7 @@ export function TelemetryProvider({ children }) {
     startMission,
     pauseMission,
     resetMission,
+    loadWaypoints,
     backendUrl: getBackendBaseUrl(),
   };
 

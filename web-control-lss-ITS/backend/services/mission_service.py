@@ -13,11 +13,13 @@ try:
     from ros.ros_publisher import ros_publisher
     from ros.ros_subscriber import ros_subscriber
     from ros.ros_parameter import ros_parameter_manager
+    from ros.ros_parameter_client import ros2_waypoint_param_client
     from config import settings
 except ImportError:
     from ..ros.ros_publisher import ros_publisher
     from ..ros.ros_subscriber import ros_subscriber
     from ..ros.ros_parameter import ros_parameter_manager
+    from ..ros.ros_parameter_client import ros2_waypoint_param_client
     from ..config import settings
 
 logger = logging.getLogger("mission_service")
@@ -94,8 +96,16 @@ class MissionService:
         ]
         self._sync_to_telemetry()
 
-    def set_waypoints(self, points: List[Dict[str, Any]]):
-        """Replaces current waypoint plan with new list."""
+    def set_waypoints(
+        self,
+        points: List[Dict[str, Any]],
+        sync_to_ros: bool = True,
+        trajectory: str = "A",
+        radius: Optional[float] = None
+    ) -> Dict[str, Any]:
+        """
+        Replaces current waypoint plan with new list and optionally pushes parameters to ROS 2.
+        """
         self.waypoints = []
         for i, pt in enumerate(points):
             wp = Waypoint(
@@ -111,6 +121,26 @@ class MissionService:
         self.status = "IDLE"
         self._sync_to_telemetry()
         logger.info(f"Loaded {len(self.waypoints)} waypoints for mission {self.mission_id}")
+
+        ros_result = None
+        if sync_to_ros:
+            ros_result = self.sync_waypoints_to_ros(trajectory=trajectory, radius=radius)
+
+        return {
+            "success": True,
+            "count": len(self.waypoints),
+            "trajectory": trajectory,
+            "ros_sync": ros_result
+        }
+
+    def sync_waypoints_to_ros(self, trajectory: str = "A", radius: Optional[float] = None) -> Dict[str, Any]:
+        """Uploads current mission waypoints as parameters to /gps_navigation."""
+        wp_dicts = [wp.to_dict() for wp in self.waypoints]
+        return ros2_waypoint_param_client.upload_waypoints_as_params(
+            waypoints=wp_dicts,
+            trajectory=trajectory,
+            radius=radius
+        )
 
     def start_mission(self) -> Dict[str, Any]:
         """Starts or resumes execution of loaded mission."""
