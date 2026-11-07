@@ -82,8 +82,8 @@ class MissionService:
 
     def _init_default_circuit(self):
         """Initializes standard demonstration waypoints."""
-        base_lat = -7.2825
-        base_lon = 112.7953
+        base_lat = -7.286340
+        base_lon = 112.795933
         default_points = [
             (base_lat + 0.0003, base_lon + 0.0002, "SURVEY_SURFACE"),
             (base_lat + 0.0005, base_lon + 0.0006, "SURVEY_UNDERWATER"),

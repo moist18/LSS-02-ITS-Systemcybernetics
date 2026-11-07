@@ -57,8 +57,8 @@ class ROSSubscriber:
                 "lidar": True,
             },
             "navigation": {
-                "latitude": -7.2825,      # ITS Surabaya Marine Basin baseline
-                "longitude": 112.7953,
+                "latitude": -7.286340,    # ITS Surabaya Marine Basin baseline
+                "longitude": 112.795933,
                 "altitude": 1.2,
                 "heading_deg": 214.0,     # HDG 214° SW
                 "heading_label": "214° SW",

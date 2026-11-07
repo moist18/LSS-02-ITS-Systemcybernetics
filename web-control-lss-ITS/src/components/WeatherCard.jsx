@@ -88,20 +88,49 @@ const buildRosbridgePayload = (plan, params) => ({
 });
 
 export default function WeatherCard() {
-  const { startMission, pauseMission, resetMission, loadWaypoints, telemetry } = useTelemetry();
-  const [selectedPlanId, setSelectedPlanId] = useState(waypointPlans[0].id);
-  const [selectedParams, setSelectedParams] = useState(waypointPlans[0].params);
-  const [draftPlanId, setDraftPlanId] = useState(waypointPlans[0].id);
-  const [draftParams, setDraftParams] = useState(waypointPlans[0].params);
+  const {
+    startMission,
+    pauseMission,
+    resetMission,
+    loadWaypoints,
+    telemetry,
+    plannedWaypoints,
+    setPlannedWaypoints,
+    removePlannedWaypoint,
+    clearPlannedWaypoints,
+    isMapPlanningMode,
+    setIsMapPlanningMode,
+    rosSyncStatus,
+    setRosSyncStatus,
+  } = useTelemetry();
+
+  const [selectedPlanId, setSelectedPlanId] = useState('custom-map');
+  const [selectedParams, setSelectedParams] = useState({
+    planner: 'waypoint_follower',
+    cruiseSpeed: '1.20',
+    acceptanceRadius: '2.5',
+    frameId: 'map',
+    parameterNamespace: '/gps_navigation',
+    trajectory: 'A',
+    rosbridgeUrl: 'ws://localhost:9090',
+    loop: false,
+  });
+  const [draftPlanId, setDraftPlanId] = useState('custom-map');
+  const [draftParams, setDraftParams] = useState({
+    planner: 'waypoint_follower',
+    cruiseSpeed: '1.20',
+    acceptanceRadius: '2.5',
+    frameId: 'map',
+    parameterNamespace: '/gps_navigation',
+    trajectory: 'A',
+    rosbridgeUrl: 'ws://localhost:9090',
+    loop: false,
+  });
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   const [showPayload, setShowPayload] = useState(false);
   const [configStatus, setConfigStatus] = useState('SYNCED');
 
   const missionStatus = telemetry?.mission?.status || 'IDLE';
-
-  const selectedPlan = waypointPlans.find((plan) => plan.id === selectedPlanId) || waypointPlans[0];
-  const draftPlan = waypointPlans.find((plan) => plan.id === draftPlanId) || waypointPlans[0];
-  const rosbridgePayload = buildRosbridgePayload(draftPlan, draftParams);
 
   const openConfiguration = () => {
     setDraftPlanId(selectedPlanId);
@@ -111,9 +140,30 @@ export default function WeatherCard() {
   };
 
   const handlePlanChange = (event) => {
-    const nextPlan = waypointPlans.find((plan) => plan.id === event.target.value) || waypointPlans[0];
-    setDraftPlanId(nextPlan.id);
-    setDraftParams({ ...nextPlan.params });
+    const planId = event.target.value;
+    setDraftPlanId(planId);
+    if (planId === 'custom-map') {
+      // Keep current planned waypoints
+    } else {
+      const nextPlan = waypointPlans.find((plan) => plan.id === planId);
+      if (nextPlan) {
+        setDraftParams((prev) => ({
+          ...prev,
+          ...nextPlan.params,
+        }));
+        // Populate custom plannedWaypoints with this preset
+        setPlannedWaypoints(
+          nextPlan.waypoints.map((wp, i) => ({
+            id: wp.id || `WP-${String(i + 1).padStart(2, '0')}`,
+            name: wp.name,
+            lat: wp.lat,
+            lon: wp.lon,
+            target_speed: Number(nextPlan.params.cruiseSpeed) || 1.5,
+            action: 'PASS',
+          }))
+        );
+      }
+    }
   };
 
   const handleParamChange = (field, value) => {
@@ -126,22 +176,35 @@ export default function WeatherCard() {
     setSelectedParams({ ...draftParams });
     setConfigStatus('SYNCING...');
     try {
-      if (loadWaypoints) {
-        const formattedWaypoints = draftPlan.waypoints.map((w, idx) => ({
-          id: idx + 1,
-          lat: w.lat,
-          lon: w.lon,
-          target_speed: Number(draftParams.cruiseSpeed) || 1.2,
-          acceptance_radius: Number(draftParams.acceptanceRadius) || 3.0,
-          action: 'PASS',
-        }));
-        await loadWaypoints(formattedWaypoints);
+      if (loadWaypoints && plannedWaypoints.length > 0) {
+        await loadWaypoints(
+          plannedWaypoints,
+          draftParams.trajectory || 'A',
+          Number(draftParams.acceptanceRadius) || 2.5
+        );
+        setConfigStatus('SYNCED TO ROS2');
+      } else {
+        setConfigStatus('CONFIG STAGED');
       }
-      setConfigStatus('SYNCED TO ROS2');
     } catch {
-      setConfigStatus('CONFIG STAGED');
+      setConfigStatus('SYNC ERROR');
     }
     setIsConfigOpen(false);
+  };
+
+  const handleSyncToRos = async () => {
+    if (!plannedWaypoints || plannedWaypoints.length === 0) return;
+    setConfigStatus('SYNCING...');
+    try {
+      await loadWaypoints(
+        plannedWaypoints,
+        selectedParams.trajectory || 'A',
+        Number(selectedParams.acceptanceRadius) || 2.5
+      );
+      setConfigStatus('SYNCED TO ROS2');
+    } catch {
+      setConfigStatus('SYNC ERROR');
+    }
   };
 
   return (
@@ -154,7 +217,9 @@ export default function WeatherCard() {
             </div>
             <div className="min-w-0">
               <h3 className="text-xs font-bold text-slate-900 dark:text-white truncate">Waypoint Plan</h3>
-              <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">{selectedPlan.name}</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate">
+                {selectedPlanId === 'custom-map' ? 'Custom Path (Map Planning)' : (waypointPlans.find(p => p.id === selectedPlanId)?.name || 'Custom Plan')}
+              </p>
             </div>
           </div>
           <button
@@ -168,45 +233,116 @@ export default function WeatherCard() {
         </div>
 
         <div className="flex items-center justify-between text-[9px] font-mono text-slate-400 dark:text-slate-500">
-          <span>{selectedPlan.waypoints.length} WPs · {missionStatus}</span>
+          <span>{plannedWaypoints?.length || 0} WPs · {missionStatus}</span>
           <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-semibold">
             <span className={`w-1.5 h-1.5 rounded-full ${missionStatus === 'RUNNING' ? 'bg-emerald-500 animate-ping' : 'bg-emerald-500'}`}></span>
             {configStatus}
           </span>
         </div>
 
-        <div className="space-y-1 pt-1">
-          {selectedPlan.waypoints.slice(0, 4).map((waypoint, index) => (
-            <div key={waypoint.id} className="flex items-center gap-2 rounded-xl px-1.5 py-1 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
-              <div className="flex flex-col items-center self-stretch">
-                <span className="w-5 h-5 rounded-full bg-slate-900 text-white dark:bg-sky-500 dark:text-slate-950 flex items-center justify-center text-[9px] font-bold">
-                  {index + 1}
-                </span>
-                {index < Math.min(selectedPlan.waypoints.length, 4) - 1 && (
-                  <span className="w-px flex-1 bg-slate-200 dark:bg-slate-700 mt-0.5"></span>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 truncate">{waypoint.name}</span>
-                  <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500">{waypoint.id}</span>
+        {/* Dynamic Waypoints List displaying real Lat/Lon */}
+        <div className="space-y-1 pt-1 max-h-44 overflow-y-auto pr-0.5">
+          {plannedWaypoints && plannedWaypoints.length > 0 ? (
+            plannedWaypoints.map((waypoint, index) => (
+              <div
+                key={waypoint.id || index}
+                className="group flex items-center gap-2 rounded-xl px-1.5 py-1 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+              >
+                <div className="flex flex-col items-center self-stretch">
+                  <span className="w-5 h-5 rounded-full bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950 flex items-center justify-center text-[9px] font-mono font-bold">
+                    {index + 1}
+                  </span>
+                  {index < plannedWaypoints.length - 1 && (
+                    <span className="w-px flex-1 bg-slate-200 dark:bg-slate-700 mt-0.5"></span>
+                  )}
                 </div>
-                <p className="text-[9px] font-mono text-slate-400 dark:text-slate-500 truncate">
-                  {waypoint.lat.toFixed(5)}, {waypoint.lon.toFixed(5)}
-                </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 truncate">
+                      {waypoint.name || `Waypoint ${index + 1}`}
+                    </span>
+                    <span className="text-[8.5px] font-mono text-amber-600 dark:text-amber-400 font-semibold">
+                      {waypoint.action || 'PASS'}
+                    </span>
+                  </div>
+                  <p className="text-[9px] font-mono text-slate-500 dark:text-slate-400 truncate">
+                    Lat: {Number(waypoint.lat).toFixed(6)}, Lon: {Number(waypoint.lon).toFixed(6)}
+                  </p>
+                </div>
+                {/* Delete button per waypoint */}
+                <button
+                  onClick={() => removePlannedWaypoint(waypoint.id)}
+                  className="opacity-0 group-hover:opacity-100 p-0.5 text-slate-400 hover:text-rose-500 transition-all rounded"
+                  title="Hapus Waypoint"
+                  type="button"
+                >
+                  <span className="material-symbols-outlined text-[13px]">delete</span>
+                </button>
               </div>
+            ))
+          ) : (
+            <div className="py-3 text-center rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-800">
+              <p className="text-[9.5px] text-slate-500 dark:text-slate-400">Belum ada titik waypoint</p>
+              <button
+                onClick={() => setIsMapPlanningMode(true)}
+                type="button"
+                className="mt-1 text-[9px] font-bold text-sky-600 dark:text-sky-400 hover:underline inline-flex items-center gap-1"
+              >
+                <span className="material-symbols-outlined text-xs">add_location_alt</span>
+                Klik Peta untuk Menambah
+              </button>
             </div>
-          ))}
+          )}
         </div>
 
-        <div className="flex items-center gap-1.5 mt-1">
+        {/* Quick Route Actions */}
+        <div className="flex items-center gap-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800/60">
+          <button
+            onClick={() => setIsMapPlanningMode(!isMapPlanningMode)}
+            type="button"
+            className={`flex-1 rounded-xl px-2 py-1.5 text-[9.5px] font-bold flex items-center justify-center gap-1 transition-all ${
+              isMapPlanningMode
+                ? 'bg-amber-500 text-slate-950 animate-pulse'
+                : 'bg-slate-100 dark:bg-slate-800/80 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700'
+            }`}
+            title="Klik peta untuk menambah titik waypoint"
+          >
+            <span className="material-symbols-outlined text-xs">
+              {isMapPlanningMode ? 'check_circle' : 'add_location_alt'}
+            </span>
+            {isMapPlanningMode ? 'Selesai Klik' : '+ Klik Map'}
+          </button>
+          <button
+            onClick={handleSyncToRos}
+            disabled={!plannedWaypoints || plannedWaypoints.length === 0}
+            type="button"
+            className="flex-1 rounded-xl bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white px-2 py-1.5 text-[9.5px] font-bold flex items-center justify-center gap-1 shadow-xs transition-colors"
+            title="Upload waypoints as ROS 2 parameters to /gps_navigation"
+          >
+            <span className="material-symbols-outlined text-xs">cloud_upload</span>
+            Upload ROS 2
+          </button>
+          {plannedWaypoints && plannedWaypoints.length > 0 && (
+            <button
+              onClick={clearPlannedWaypoints}
+              type="button"
+              className="rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 hover:text-rose-600 dark:hover:bg-rose-950/40 text-slate-400 px-2 py-1.5 text-[9.5px] font-bold transition-colors"
+              title="Reset semua waypoint"
+            >
+              <span className="material-symbols-outlined text-xs">delete_sweep</span>
+            </button>
+          )}
+        </div>
+
+        {/* Mission Run Controls */}
+        <div className="flex items-center gap-1.5 pt-1">
           <button
             onClick={openConfiguration}
             type="button"
             className="flex-1 rounded-xl bg-slate-100 dark:bg-slate-800/80 px-2.5 py-1.5 text-[10px] font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors flex items-center justify-center gap-1"
           >
-            <span className="material-symbols-outlined text-xs">edit_location_alt</span>
-            Route
+            <span className="material-symbols-outlined text-xs">tune</span>
+            Config
           </button>
           <button
             onClick={startMission}
@@ -271,76 +407,68 @@ export default function WeatherCard() {
 
             <form onSubmit={handleSaveConfiguration} className="space-y-4 pt-4 text-xs">
               <div>
-                <label htmlFor="waypoint-plan" className="block mb-1 font-semibold text-slate-700 dark:text-slate-300">Waypoint configuration</label>
+                <label htmlFor="waypoint-plan" className="block mb-1 font-semibold text-slate-700 dark:text-slate-300">Preset / Active Path Selection</label>
                 <select
                   id="waypoint-plan"
                   value={draftPlanId}
                   onChange={handlePlanChange}
                   className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white focus:outline-none focus:ring-2 focus:ring-sky-500"
                 >
+                  <option value="custom-map">📍 Custom Map Plan ({plannedWaypoints?.length || 0} Points)</option>
                   {waypointPlans.map((plan) => (
                     <option key={plan.id} value={plan.id}>{plan.name} · {plan.waypoints.length} WPs</option>
                   ))}
                 </select>
-                <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">{draftPlan.description}</p>
+                <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                  {draftPlanId === 'custom-map' ? 'Titik-titik rute aktif yang ditambahkan langsung melalui klik pada peta.' : (waypointPlans.find(p => p.id === draftPlanId)?.description || '')}
+                </p>
               </div>
 
               <div className="rounded-2xl bg-slate-50 dark:bg-slate-800/50 p-3 border border-slate-100 dark:border-slate-800">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-semibold text-slate-700 dark:text-slate-300">Route waypoints</span>
-                  <span className="font-mono text-[10px] text-slate-400">{draftPlan.waypoints.length} points</span>
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Route Waypoints (Lat / Lon)</span>
+                  <span className="font-mono text-[10px] text-slate-400">{plannedWaypoints?.length || 0} points</span>
                 </div>
-                <div className="space-y-1.5">
-                  {draftPlan.waypoints.map((waypoint, index) => (
-                    <div key={waypoint.id} className="flex items-center gap-2">
-                      <span className="w-5 h-5 rounded-full bg-slate-900 text-white dark:bg-sky-500 dark:text-slate-950 flex items-center justify-center text-[9px] font-bold">{index + 1}</span>
-                      <span className="flex-1 text-[10px] font-medium text-slate-700 dark:text-slate-300">{waypoint.name}</span>
-                      <span className="text-[9px] font-mono text-slate-400">{waypoint.lat.toFixed(4)}, {waypoint.lon.toFixed(4)}</span>
-                    </div>
-                  ))}
+                <div className="space-y-1.5 max-h-36 overflow-y-auto pr-1">
+                  {plannedWaypoints && plannedWaypoints.length > 0 ? (
+                    plannedWaypoints.map((waypoint, index) => (
+                      <div key={waypoint.id || index} className="flex items-center gap-2">
+                        <span className="w-5 h-5 rounded-full bg-slate-900 text-white dark:bg-amber-500 dark:text-slate-950 flex items-center justify-center text-[9px] font-mono font-bold">{index + 1}</span>
+                        <span className="flex-1 text-[10px] font-medium text-slate-700 dark:text-slate-300">{waypoint.name || `WP-${index + 1}`}</span>
+                        <span className="text-[9px] font-mono text-slate-500 dark:text-slate-400">Lat: {Number(waypoint.lat).toFixed(6)}, Lon: {Number(waypoint.lon).toFixed(6)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-[10px] text-slate-400 text-center py-2">Belum ada titik waypoint.</p>
+                  )}
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="planner-type" className="block mb-1 font-semibold text-slate-700 dark:text-slate-300">Planner</label>
+                  <label htmlFor="trajectory-select" className="block mb-1 font-semibold text-slate-700 dark:text-slate-300">ROS 2 Trajectory Slot</label>
+                  <select
+                    id="trajectory-select"
+                    value={draftParams.trajectory || 'A'}
+                    onChange={(event) => handleParamChange('trajectory', event.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white font-mono text-[10px] focus:outline-none focus:ring-2 focus:ring-sky-500"
+                  >
+                    <option value="A">Trajectory A (navigation.waypoints_A)</option>
+                    <option value="B">Trajectory B (navigation.waypoints_B)</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="planner-type" className="block mb-1 font-semibold text-slate-700 dark:text-slate-300">Planner Type</label>
                   <select
                     id="planner-type"
                     value={draftParams.planner}
                     onChange={(event) => handleParamChange('planner', event.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white font-mono text-[10px] focus:outline-none focus:ring-2 focus:ring-sky-500"
                   >
-                    <option value="waypoint_follower">Waypoint Follower</option>
+                    <option value="waypoint_follower">Waypoint Follower (/gps_navigation)</option>
                     <option value="nav2_smac_hybrid">Nav2 Smac Hybrid</option>
                     <option value="coverage_planner">Coverage Planner</option>
                   </select>
-                </div>
-                <div>
-                  <label htmlFor="frame-id" className="block mb-1 font-semibold text-slate-700 dark:text-slate-300">Frame ID</label>
-                  <input
-                    id="frame-id"
-                    value={draftParams.frameId}
-                    onChange={(event) => handleParamChange('frameId', event.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white font-mono text-[10px] focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="rosbridge-url" className="block mb-1 font-semibold text-slate-700 dark:text-slate-300">ROSBridge URL</label>
-                  <input
-                    id="rosbridge-url"
-                    value={draftParams.rosbridgeUrl}
-                    onChange={(event) => handleParamChange('rosbridgeUrl', event.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white font-mono text-[10px] focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
-                </div>
-                <div>
-                  <label htmlFor="parameter-namespace" className="block mb-1 font-semibold text-slate-700 dark:text-slate-300">Parameter namespace</label>
-                  <input
-                    id="parameter-namespace"
-                    value={draftParams.parameterNamespace}
-                    onChange={(event) => handleParamChange('parameterNamespace', event.target.value)}
-                    className="w-full px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 text-slate-800 dark:text-white font-mono text-[10px] focus:outline-none focus:ring-2 focus:ring-sky-500"
-                  />
                 </div>
                 <div>
                   <label htmlFor="cruise-speed" className="block mb-1 font-semibold text-slate-700 dark:text-slate-300">Cruise speed (m/s)</label>
@@ -370,36 +498,14 @@ export default function WeatherCard() {
                 </div>
               </div>
 
-              <label className="flex items-center gap-2 text-[10px] font-medium text-slate-600 dark:text-slate-400 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={draftParams.loop}
-                  onChange={(event) => handleParamChange('loop', event.target.checked)}
-                  className="rounded border-slate-300 text-sky-500 focus:ring-sky-500"
-                />
-                Loop route after reaching the final waypoint
-              </label>
-
               <div className="rounded-2xl border border-sky-100 dark:border-sky-900/60 bg-sky-50/70 dark:bg-sky-950/20 p-3">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-[10px] font-bold text-sky-800 dark:text-sky-300">ROSBridge parameter target</p>
-                    <p className="text-[9px] font-mono text-sky-700/70 dark:text-sky-400/70">{draftParams.rosbridgeUrl} · {draftParams.parameterNamespace}/set_parameters_atomically</p>
+                    <p className="text-[10px] font-bold text-sky-800 dark:text-sky-300">Target ROS 2 Node Parameter</p>
+                    <p className="text-[9px] font-mono text-sky-700/70 dark:text-sky-400/70">Node: /gps_navigation · Slot: {draftParams.trajectory || 'A'} · {plannedWaypoints?.length || 0} WPs</p>
                   </div>
-                  <span className="text-[9px] font-semibold text-amber-600 dark:text-amber-400">READY FOR INTEGRATION</span>
+                  <span className="text-[9px] font-semibold text-emerald-600 dark:text-emerald-400">READY</span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowPayload((current) => !current)}
-                  className="mt-2 text-[10px] font-semibold text-sky-700 dark:text-sky-300 hover:underline"
-                >
-                  {showPayload ? 'Hide ROSBridge payload' : 'Preview ROSBridge payload'}
-                </button>
-                {showPayload && (
-                  <pre className="mt-2 max-h-40 overflow-auto rounded-xl bg-slate-950 p-2 text-[8px] leading-relaxed text-sky-200 font-mono">
-                    {JSON.stringify(rosbridgePayload, null, 2)}
-                  </pre>
-                )}
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-1">
@@ -412,9 +518,9 @@ export default function WeatherCard() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 rounded-full font-bold bg-slate-900 text-white dark:bg-sky-500 dark:text-slate-950 shadow-md hover:bg-slate-800 transition-colors"
+                  className="px-4 py-2 rounded-full font-bold bg-sky-600 text-white hover:bg-sky-700 shadow-md transition-colors"
                 >
-                  Stage parameters
+                  Apply & Upload to ROS 2
                 </button>
               </div>
             </form>

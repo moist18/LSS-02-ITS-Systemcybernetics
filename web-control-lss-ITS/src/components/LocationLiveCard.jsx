@@ -5,13 +5,12 @@ import { useTelemetry } from '../context/TelemetryContext';
 
 // Coordinates for the active mission area.
 // MapTiler expects coordinates in [longitude, latitude] order.
-const USV_LAT = -7.286365011018518;
-const USV_LON = 112.7959597208925;
+const USV_LAT = -7.286340;
+const USV_LON = 112.795933;
 const USV_COORDS = [USV_LON, USV_LAT];
 const WP1_COORDS = [USV_LON + 0.0126, USV_LAT - 0.0078];
 const WP2_COORDS = [USV_LON + 0.0266, USV_LAT - 0.0138];
 const BUOY_COORDS = [USV_LON + 0.0036, USV_LAT - 0.0023];
-const STATION_COORDS = [USV_LON - 0.0134, USV_LAT + 0.0122];
 
 const ROUTE_GEOJSON = {
   type: 'FeatureCollection',
@@ -45,11 +44,54 @@ const ROUTE_GEOJSON = {
 
 const MAPTILER_API_KEY = import.meta.env.VITE_MAPTILER_API_KEY || 'el2TG0a2d25RjhVq8HYL';
 
+// Shared ids so the route line and the waypoint icons always use the same sources
+const MISSION_ROUTE_SOURCE = 'mission-route';
+const MISSION_WP_SOURCE = 'mission-waypoints';
+const MISSION_SEGMENT_SOURCE = 'mission-segments';
+const ROUTE_HISTORY_LAYER = 'route-history';
+const ROUTE_PLANNED_LAYER = 'route-planned';
+const SEGMENT_HIGHLIGHT_LAYER = 'waypoint-segment-highlight';
+const WP_CIRCLE_LAYER = 'waypoint-circle';
+const WP_CENTER_LAYER = 'waypoint-center';
+const WP_LABEL_LAYER = 'waypoint-label';
+
 export default function LocationLiveCard() {
-  const { telemetry } = useTelemetry();
+  const {
+    telemetry,
+    plannedWaypoints,
+    addPlannedWaypoint,
+    clearPlannedWaypoints,
+    isMapPlanningMode,
+    setIsMapPlanningMode,
+    deployPlannedWaypoints,
+    rosSyncStatus,
+  } = useTelemetry();
+
   const mapContainerRef = useRef(null);
   const mapRef = useRef(null);
   const markersRef = useRef([]);
+  const usvMarkerRef = useRef(null);
+  const wpPopupRef = useRef(null);
+
+  // Storing refs for map event closures
+  const isMapPlanningModeRef = useRef(isMapPlanningMode);
+  isMapPlanningModeRef.current = isMapPlanningMode;
+  const plannedWaypointsRef = useRef(plannedWaypoints);
+  plannedWaypointsRef.current = plannedWaypoints;
+  const telemetryRef = useRef(telemetry);
+  telemetryRef.current = telemetry;
+
+  // Single source of truth for the vessel position.
+  // The marker, the route origin and the click projection must all use this.
+  const getUsvCoord = useCallback(() => {
+    const nav = telemetryRef.current?.navigation || {};
+    const lng = Number(nav.longitude);
+    const lat = Number(nav.latitude);
+    return [
+      Number.isFinite(lng) ? lng : USV_LON,
+      Number.isFinite(lat) ? lat : USV_LAT,
+    ];
+  }, []);
 
   // Live telemetry dynamic values
   const lat = (telemetry?.navigation?.latitude ?? USV_LAT).toFixed(6);
@@ -68,25 +110,111 @@ export default function LocationLiveCard() {
   const [hudVisible, setHudVisible] = useState(true);
   const [mapLoaded, setMapLoaded] = useState(false);
 
-  // Helper to add GeoJSON route layers
+  // Build route GeoJSON always anchored to the *live* vessel position
+  const buildRouteGeoJSON = useCallback(() => {
+    const currentUsvCoord = getUsvCoord();
+    const plannedCoords = (plannedWaypointsRef.current || []).map((wp) => [
+      Number(wp.lon),
+      Number(wp.lat),
+    ]);
+    const plannedLine = plannedCoords.length > 0 ? [currentUsvCoord, ...plannedCoords] : [];
+
+    return {
+      type: 'FeatureCollection',
+      features: [
+        {
+          type: 'Feature',
+          properties: { type: 'history' },
+          geometry: {
+            type: 'LineString',
+            coordinates: [
+              [currentUsvCoord[0] - 0.0174, currentUsvCoord[1] + 0.0102],
+              [currentUsvCoord[0] - 0.0104, currentUsvCoord[1] + 0.0052],
+              currentUsvCoord,
+            ],
+          },
+        },
+        {
+          type: 'Feature',
+          properties: { type: 'planned' },
+          geometry: {
+            type: 'LineString',
+            coordinates: plannedLine,
+          },
+        },
+      ],
+    };
+  }, [getUsvCoord]);
+
+  // Waypoints are rendered by MapLibre itself (canvas layers), so they share
+  // the exact same geographic -> screen projection as the route line.
+  const buildWaypointsGeoJSON = useCallback(() => {
+    return {
+      type: 'FeatureCollection',
+      features: (plannedWaypointsRef.current || []).map((wp, idx) => ({
+        type: 'Feature',
+        properties: {
+          index: idx,
+          label: String(idx + 1),
+          id: wp.id || `WP-${String(idx + 1).padStart(2, '0')}`,
+          name: wp.name || `Waypoint ${idx + 1}`,
+          action: wp.action || 'PASS',
+          lat: Number(wp.lat),
+          lon: Number(wp.lon),
+        },
+        geometry: {
+          type: 'Point',
+          coordinates: [Number(wp.lon), Number(wp.lat)],
+        },
+      })),
+    };
+  }, []);
+
+  // One segment per waypoint: previous point (vessel or previous WP) -> waypoint
+  const buildSegmentsGeoJSON = useCallback(() => {
+    const waypoints = plannedWaypointsRef.current || [];
+    const currentUsvCoord = getUsvCoord();
+
+    return {
+      type: 'FeatureCollection',
+      features: waypoints.map((wp, idx) => {
+        const from = idx === 0
+          ? currentUsvCoord
+          : [Number(waypoints[idx - 1].lon), Number(waypoints[idx - 1].lat)];
+
+        return {
+          type: 'Feature',
+          properties: { index: idx },
+          geometry: {
+            type: 'LineString',
+            coordinates: [from, [Number(wp.lon), Number(wp.lat)]],
+          },
+        };
+      }),
+    };
+  }, [getUsvCoord]);
+
+  // Helper to add GeoJSON route + waypoint layers
   const addRouteLayers = useCallback((map) => {
     if (!map) return;
 
-    if (map.getSource('mission-route')) {
+    if (map.getSource(MISSION_ROUTE_SOURCE)) {
       return;
     }
 
+    const emptyCollection = { type: 'FeatureCollection', features: [] };
+
     try {
-      map.addSource('mission-route', {
+      map.addSource(MISSION_ROUTE_SOURCE, {
         type: 'geojson',
         data: ROUTE_GEOJSON,
       });
 
       // Breadcrumb history line
       map.addLayer({
-        id: 'route-history',
+        id: ROUTE_HISTORY_LAYER,
         type: 'line',
-        source: 'mission-route',
+        source: MISSION_ROUTE_SOURCE,
         filter: ['==', ['get', 'type'], 'history'],
         layout: {
           'line-join': 'round',
@@ -101,9 +229,9 @@ export default function LocationLiveCard() {
 
       // Planned route line (dashed glow)
       map.addLayer({
-        id: 'route-planned',
+        id: ROUTE_PLANNED_LAYER,
         type: 'line',
-        source: 'mission-route',
+        source: MISSION_ROUTE_SOURCE,
         filter: ['==', ['get', 'type'], 'planned'],
         layout: {
           'line-join': 'round',
@@ -116,10 +244,101 @@ export default function LocationLiveCard() {
           'line-opacity': 0.9,
         },
       });
+
+      map.addSource(MISSION_SEGMENT_SOURCE, {
+        type: 'geojson',
+        data: emptyCollection,
+      });
+
+      // Highlighted segment for the hovered waypoint (debug aid)
+      map.addLayer({
+        id: SEGMENT_HIGHLIGHT_LAYER,
+        type: 'line',
+        source: MISSION_SEGMENT_SOURCE,
+        filter: ['==', ['get', 'index'], -1],
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+        },
+        paint: {
+          'line-color': '#fbbf24',
+          'line-width': 7,
+          'line-opacity': 0.85,
+        },
+      });
+
+      map.addSource(MISSION_WP_SOURCE, {
+        type: 'geojson',
+        data: emptyCollection,
+      });
+
+      // Waypoint icon (amber circle), drawn above the route line
+      map.addLayer({
+        id: WP_CIRCLE_LAYER,
+        type: 'circle',
+        source: MISSION_WP_SOURCE,
+        paint: {
+          'circle-radius': 11,
+          'circle-color': '#f59e0b',
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 2,
+          'circle-opacity': 1,
+          'circle-stroke-opacity': 1,
+        },
+      });
+
+      // Tiny dot showing the exact coordinate (visual debugging indicator)
+      map.addLayer({
+        id: WP_CENTER_LAYER,
+        type: 'circle',
+        source: MISSION_WP_SOURCE,
+        paint: {
+          'circle-radius': 2,
+          'circle-color': '#0f172a',
+          'circle-stroke-color': '#ffffff',
+          'circle-stroke-width': 1,
+          'circle-opacity': 1,
+        },
+      });
+
+      // Waypoint id label above the marker
+      map.addLayer({
+        id: WP_LABEL_LAYER,
+        type: 'symbol',
+        source: MISSION_WP_SOURCE,
+        layout: {
+          'text-field': ['get', 'id'],
+          'text-font': ['Roboto Medium'],
+          'text-size': 9,
+          'text-offset': [0, -1.9],
+          'text-anchor': 'bottom',
+          'text-allow-overlap': true,
+          'text-ignore-placement': true,
+        },
+        paint: {
+          'text-color': '#fcd34d',
+          'text-halo-color': '#0f172a',
+          'text-halo-width': 1.2,
+        },
+      });
     } catch (e) {
       console.warn('Could not add route layers:', e);
     }
   }, []);
+
+  // Push the freshest route + waypoint data into the existing map sources
+  const syncRouteToMap = useCallback((map) => {
+    if (!map) return;
+
+    const routeSource = map.getSource(MISSION_ROUTE_SOURCE);
+    if (routeSource) routeSource.setData(buildRouteGeoJSON());
+
+    const wpSource = map.getSource(MISSION_WP_SOURCE);
+    if (wpSource) wpSource.setData(buildWaypointsGeoJSON());
+
+    const segmentSource = map.getSource(MISSION_SEGMENT_SOURCE);
+    if (segmentSource) segmentSource.setData(buildSegmentsGeoJSON());
+  }, [buildRouteGeoJSON, buildWaypointsGeoJSON, buildSegmentsGeoJSON]);
 
   // Helper to attach custom DOM markers
   const attachMarkers = useCallback((map) => {
@@ -157,29 +376,14 @@ export default function LocationLiveCard() {
       </div>
     `);
 
-    const usvMarker = new maptilersdk.Marker({ element: usvEl })
-      .setLngLat(USV_COORDS)
+    const usvMarker = new maptilersdk.Marker({ element: usvEl, anchor: 'center' })
+      .setLngLat(getUsvCoord())
       .setPopup(usvPopup)
       .addTo(map);
+    usvMarkerRef.current = usvMarker;
     markersRef.current.push(usvMarker);
 
-    // 2. Waypoint WP-02 Marker
-    const wp2El = document.createElement('div');
-    wp2El.className = 'relative flex items-center justify-center cursor-pointer';
-    wp2El.innerHTML = `
-      <div class="w-5 h-5 rounded-full bg-amber-500/90 border-2 border-white shadow-md flex items-center justify-center text-white text-[9px] font-bold">
-        W2
-      </div>
-      <div class="absolute -top-4 text-[9px] font-mono font-bold text-amber-300 bg-slate-900/80 px-1 rounded shadow whitespace-nowrap">
-        WP-02
-      </div>
-    `;
-    const wp2Marker = new maptilersdk.Marker({ element: wp2El })
-      .setLngLat(WP2_COORDS)
-      .addTo(map);
-    markersRef.current.push(wp2Marker);
-
-    // 3. Sensor Buoy BUOY-04 Marker
+    // 2. Sensor Buoy BUOY-04 Marker
     const buoyEl = document.createElement('div');
     buoyEl.className = 'relative flex items-center justify-center cursor-pointer';
     buoyEl.innerHTML = `
@@ -194,25 +398,7 @@ export default function LocationLiveCard() {
       .setLngLat(BUOY_COORDS)
       .addTo(map);
     markersRef.current.push(buoyMarker);
-
-    // 4. Harbor Base Station Marker
-    const stationEl = document.createElement('div');
-    stationEl.className = 'relative flex items-center justify-center cursor-pointer';
-    stationEl.innerHTML = `
-      <div class="w-6 h-6 rounded-lg bg-sky-600 border border-white/80 shadow flex items-center justify-center text-white">
-        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/>
-        </svg>
-      </div>
-      <div class="absolute -top-4 text-[8px] font-mono text-sky-300 bg-slate-900/80 px-1 rounded shadow whitespace-nowrap">
-        STATION NORTH
-      </div>
-    `;
-    const stationMarker = new maptilersdk.Marker({ element: stationEl })
-      .setLngLat(STATION_COORDS)
-      .addTo(map);
-    markersRef.current.push(stationMarker);
-  }, []);
+  }, [getUsvCoord]);
 
   // Initialize MapTiler Map
   useEffect(() => {
@@ -227,7 +413,7 @@ export default function LocationLiveCard() {
     const map = new maptilersdk.Map({
       container: mapContainerRef.current,
       style: initialStyle,
-      center: USV_COORDS,
+      center: getUsvCoord(),
       zoom: 13.2,
       pitch: 38,
       bearing: -20,
@@ -238,24 +424,136 @@ export default function LocationLiveCard() {
 
     mapRef.current = map;
 
+    // Keep the canvas buffer in sync with the actual card size.
+    // Without this, markers/lines and clicked coordinates drift after layout/font reflow.
+    const resizeObserver = new ResizeObserver(() => {
+      requestAnimationFrame(() => {
+        if (mapRef.current === map) map.resize();
+      });
+    });
+    resizeObserver.observe(mapContainerRef.current);
+
+    const wpPopup = new maptilersdk.Popup({ offset: 14, closeButton: false, closeOnClick: false });
+    wpPopupRef.current = wpPopup;
+
+    const queryWaypointHit = (point) => {
+      if (!map.getLayer(WP_CIRCLE_LAYER)) return null;
+      const hits = map.queryRenderedFeatures(point, { layers: [WP_CIRCLE_LAYER] });
+      return hits.length > 0 ? hits[0] : null;
+    };
+
+    const highlightSegment = (index) => {
+      if (!map.getLayer(SEGMENT_HIGHLIGHT_LAYER)) return;
+      map.setFilter(SEGMENT_HIGHLIGHT_LAYER, ['==', ['get', 'index'], index]);
+    };
+
+    // Handle map click: inspect an existing waypoint, otherwise add a new one
+    map.on('click', (e) => {
+      const hit = queryWaypointHit(e.point);
+
+      if (hit) {
+        const props = hit.properties || {};
+        const hitIndex = Number(props.index);
+        highlightSegment(Number.isFinite(hitIndex) ? hitIndex : -1);
+        wpPopup
+          .setLngLat(hit.geometry.coordinates.slice())
+          .setHTML(`
+            <div style="font-family: monospace; font-size: 11px; padding: 4px; color: #0f172a;">
+              <strong style="color: #d97706;">${props.id || 'Waypoint'} (${props.name || 'Waypoint'})</strong><br/>
+              Lat: <b>${Number(props.lat).toFixed(6)}</b><br/>
+              Lon: <b>${Number(props.lon).toFixed(6)}</b><br/>
+              Action: <b>${props.action || 'PASS'}</b>
+            </div>
+          `)
+          .addTo(map);
+        return;
+      }
+
+      wpPopup.remove();
+
+      if (!isMapPlanningModeRef.current) return;
+      const clickLng = Number(e.lngLat.lng.toFixed(6));
+      const clickLat = Number(e.lngLat.lat.toFixed(6));
+      const nextCount = (plannedWaypointsRef.current?.length || 0) + 1;
+
+      addPlannedWaypoint({
+        id: `WP-${String(nextCount).padStart(2, '0')}`,
+        name: `WP-${String(nextCount).padStart(2, '0')}`,
+        lat: clickLat,
+        lon: clickLng,
+        alt: 0.0,
+        action: 'PASS',
+        target_speed: 1.5,
+      });
+    });
+
+    // Hover: highlight the segment that ends at the waypoint
+    map.on('mousemove', (e) => {
+      const hit = queryWaypointHit(e.point);
+
+      if (!hit) {
+        highlightSegment(-1);
+        map.getCanvas().style.cursor = isMapPlanningModeRef.current ? 'crosshair' : '';
+        return;
+      }
+
+      const idx = Number(hit.properties?.index);
+      highlightSegment(Number.isFinite(idx) ? idx : -1);
+      map.getCanvas().style.cursor = 'pointer';
+    });
+
+    map.on('mouseout', () => {
+      highlightSegment(-1);
+    });
+
     map.on('load', () => {
       setMapLoaded(true);
       addRouteLayers(map);
+      syncRouteToMap(map);
       attachMarkers(map);
     });
 
     map.on('style.load', () => {
       addRouteLayers(map);
+      syncRouteToMap(map);
       attachMarkers(map);
     });
 
     return () => {
+      resizeObserver.disconnect();
       markersRef.current.forEach((m) => m.remove());
       markersRef.current = [];
+      usvMarkerRef.current = null;
+      wpPopup.remove();
+      wpPopupRef.current = null;
       map.remove();
       mapRef.current = null;
     };
-  }, [addRouteLayers, attachMarkers]);
+  }, [addRouteLayers, syncRouteToMap, attachMarkers, addPlannedWaypoint, getUsvCoord]);
+
+  // Adjust cursor based on planning mode
+  useEffect(() => {
+    if (!mapRef.current) return;
+    try {
+      const canvas = mapRef.current.getCanvas();
+      if (canvas) {
+        canvas.style.cursor = isMapPlanningMode ? 'crosshair' : '';
+      }
+    } catch (e) {
+      console.warn('Canvas cursor update err:', e);
+    }
+  }, [isMapPlanningMode]);
+
+  // Keep the vessel icon, route line and canvas waypoint layers in sync
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    if (usvMarkerRef.current) {
+      usvMarkerRef.current.setLngLat(getUsvCoord());
+    }
+    syncRouteToMap(map);
+  }, [plannedWaypoints, mapLoaded, telemetry, syncRouteToMap, getUsvCoord]);
 
   // Handle View Mode switch
   const handleModeChange = (mode) => {
@@ -283,7 +581,7 @@ export default function LocationLiveCard() {
   const handleRecenter = () => {
     if (mapRef.current) {
       mapRef.current.flyTo({
-        center: USV_COORDS,
+        center: getUsvCoord(),
         zoom: 13.5,
         pitch: 38,
         bearing: -20,
@@ -320,8 +618,33 @@ export default function LocationLiveCard() {
           </p>
         </div>
 
-        {/* View Mode Switcher Pill */}
-        <div className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-full">
+        {/* Header Right Controls: Mode Toggle & View Mode Switcher Pill */}
+        <div className="flex items-center gap-2">
+          {/* Toggle Add Waypoint Planning Mode */}
+          <button
+            onClick={() => setIsMapPlanningMode(!isMapPlanningMode)}
+            type="button"
+            className={`px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5 transition-all shadow-xs ${
+              isMapPlanningMode
+                ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-300 ring-offset-1 dark:ring-offset-slate-900 animate-pulse'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-200'
+            }`}
+            title={isMapPlanningMode ? "Matikan mode klik waypoint" : "Aktifkan klik peta untuk membuat jalur"}
+          >
+            <span className="material-symbols-outlined text-sm">
+              {isMapPlanningMode ? 'edit_location' : 'add_location_alt'}
+            </span>
+            <span className="hidden sm:inline">{isMapPlanningMode ? 'Mode WP Aktif' : '+ Klik Waypoint'}</span>
+            <span className="sm:hidden">{isMapPlanningMode ? 'WP ON' : '+ WP'}</span>
+            {plannedWaypoints?.length > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[9.5px] bg-slate-900/20 text-current font-mono font-bold">
+                {plannedWaypoints.length}
+              </span>
+            )}
+          </button>
+
+          {/* View Mode Switcher Pill */}
+          <div className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/80 p-1 rounded-full">
           <button
             onClick={() => handleModeChange('video')}
             className={`w-7 h-7 rounded-full flex items-center justify-center transition-all ${
@@ -360,6 +683,7 @@ export default function LocationLiveCard() {
           </button>
         </div>
       </div>
+    </div>
 
       {/* Visual Map Viewport with MapTiler & Tactical HUD */}
       <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-slate-950 flex items-center justify-center select-none group border border-slate-800/40 shadow-inner">
@@ -448,22 +772,72 @@ export default function LocationLiveCard() {
           </button>
         </div>
 
+        {/* Active Planning Mode Top Instruction Banner */}
+        {isMapPlanningMode && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 bg-amber-500/95 backdrop-blur-md text-slate-950 text-[10px] font-mono font-bold px-3 py-1 rounded-full shadow-xl border border-amber-300 flex items-center gap-2 z-30 animate-pulse">
+            <span className="w-2 h-2 rounded-full bg-slate-950 animate-ping"></span>
+            <span>KLIK PETA: Tambah Waypoint ({plannedWaypoints?.length || 0} WP)</span>
+            <button
+              onClick={() => setIsMapPlanningMode(false)}
+              type="button"
+              className="ml-1 bg-slate-950 hover:bg-slate-800 text-white px-1.5 py-0.5 rounded-full text-[9px] font-sans font-semibold transition-colors"
+            >
+              Selesai
+            </button>
+          </div>
+        )}
+
         {/* Detection Badge Overlay in top right on mobile / floating */}
         <div className="absolute top-3 right-3 sm:right-32 bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-full text-white text-[9.5px] font-mono flex items-center gap-1.5 border border-white/10 shadow-lg z-20">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
           <span>{targetName} [{targetConf}%] • {targetDist}m</span>
         </div>
 
-        {/* Floating Waypoint Marker Tag (Clickable to focus WP-02) */}
-        <button
-          onClick={handleFlyToWp2}
-          type="button"
-          className="absolute bottom-3 left-3 bg-slate-900/90 hover:bg-slate-800 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-md flex items-center gap-1 border border-white/10 transition-colors z-20 group"
-          title="Fly to Waypoint 02"
-        >
-          <span className="material-symbols-outlined text-xs text-amber-400 group-hover:scale-110 transition-transform">flag</span>
-          <span className="font-mono">WP-02 (3.1 nm)</span>
-        </button>
+        {/* Floating Waypoint Status & Navigation Pill */}
+        <div className="absolute bottom-3 left-3 flex items-center gap-1.5 z-20">
+          {plannedWaypoints && plannedWaypoints.length > 0 ? (
+            <div className="bg-slate-900/90 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-md flex items-center gap-2 border border-white/10">
+              <button
+                onClick={() => {
+                  if (mapRef.current && plannedWaypoints.length > 0) {
+                    const lastWp = plannedWaypoints[plannedWaypoints.length - 1];
+                    mapRef.current.flyTo({
+                      center: [Number(lastWp.lon), Number(lastWp.lat)],
+                      zoom: 14.5,
+                      duration: 1000,
+                    });
+                  }
+                }}
+                type="button"
+                className="flex items-center gap-1 text-amber-300 hover:text-amber-200 transition-colors"
+                title="Fokus ke Waypoint Terakhir"
+              >
+                <span className="material-symbols-outlined text-xs text-amber-400">flag</span>
+                <span className="font-mono">
+                  {plannedWaypoints.length} WPs ({plannedWaypoints[plannedWaypoints.length - 1].lat.toFixed(4)}, {plannedWaypoints[plannedWaypoints.length - 1].lon.toFixed(4)})
+                </span>
+              </button>
+              <div className="w-px h-3 bg-white/20"></div>
+              <button
+                onClick={clearPlannedWaypoints}
+                type="button"
+                className="text-[9px] text-rose-400 hover:text-rose-300 font-mono transition-colors"
+                title="Hapus semua rute waypoint"
+              >
+                Reset
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsMapPlanningMode(true)}
+              type="button"
+              className="bg-slate-900/90 hover:bg-slate-800 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-bold text-white shadow-md flex items-center gap-1 border border-white/10 transition-colors"
+            >
+              <span className="material-symbols-outlined text-xs text-sky-400">add_location</span>
+              <span className="font-mono">Klik Peta untuk Rute Baru</span>
+            </button>
+          )}
+        </div>
 
         {/* HUD Toggle / Map Layer Style Badge */}
         <div className="absolute bottom-3 right-3 flex items-center gap-1.5 z-20">

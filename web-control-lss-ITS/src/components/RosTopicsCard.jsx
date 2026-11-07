@@ -36,7 +36,7 @@ export default function RosTopicsCard({ searchQuery = '' }) {
     {
       id: '/odom_filtered',
       name: '/odom_filtered',
-      detail: `Lat=${telemetry?.navigation?.latitude?.toFixed(4) || '-7.2825'} Lon=${telemetry?.navigation?.longitude?.toFixed(4) || '112.7953'}`,
+      detail: `Lat=${telemetry?.navigation?.latitude?.toFixed(4) || '-7.2863'} Lon=${telemetry?.navigation?.longitude?.toFixed(4) || '112.7959'}`,
       hz: `${topics?.['/odom_filtered']?.hz?.toFixed(1) || '50.0'} Hz`,
       latency: `${topics?.['/odom_filtered']?.latency_ms?.toFixed(0) || '8'}ms`,
       icon: 'explore',

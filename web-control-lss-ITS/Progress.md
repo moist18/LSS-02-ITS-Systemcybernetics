@@ -1,6 +1,6 @@
-# Progress Log: Integrasi Backend FastAPI ke ROS 2 (LSS-02 USV)
+# Progress Log: Integrasi Backend FastAPI ke ROS 2 & Cockpit Map Planner (LSS-02 USV)
 
-Dokumen ini mencatat rencana, arsitektur, dan rekam jejak cicilan implementasi integrasi antara Backend Gateway (FastAPI) dan ekosistem ROS 2 pada USV LSS-02 ITS Systemcybernetics.
+Dokumen ini mencatat rencana, arsitektur, dan rekam jejak cicilan implementasi integrasi antara Backend Gateway (FastAPI), Web Cockpit Frontend, dan ekosistem ROS 2 pada USV LSS-02 ITS Systemcybernetics.
 
 ---
 
@@ -20,16 +20,21 @@ Dokumen ini mencatat rencana, arsitektur, dan rekam jejak cicilan implementasi i
 
 ### Alur Data:
 ```
-[Web UI / Cockpit]
-        │ POST /api/mission/waypoints (JSON payload)
-        ▼
-[FastAPI Backend - api/mission.py]
-        │
-        ▼
-[MissionService & ROS2WaypointParamClient]
-        │ Call Service /gps_navigation/set_parameters
-        ▼
-[ROS 2 Node: /gps_navigation] ──► [MAVROS / Pixhawk Autopilot]
+[Map Viewport (LocationLiveCard)] ──(Klik Titik Peta)──► [TelemetryContext plannedWaypoints]
+                                                                  │
+                                                                  ▼
+                                                      [Waypoint Plan Card (WeatherCard)]
+                                                      (Menampilkan List Lat/Lon & Aksi)
+                                                                  │
+                                                      [Tombol "Upload ROS 2"]
+                                                                  │
+                                                                  ▼
+                                                      [POST /api/mission/waypoints]
+                                                                  │
+                                                      [ROS2WaypointParamClient]
+                                                                  │ Call Service SetParameters
+                                                                  ▼
+                                                      [ROS 2 Node: /gps_navigation]
 ```
 
 ---
@@ -51,10 +56,18 @@ Dokumen ini mencatat rencana, arsitektur, dan rekam jejak cicilan implementasi i
   - [x] Update endpoint `POST /api/mission/waypoints` untuk parameter upload trajectory `A`/`B` dan `radius`.
   - [x] Tambah endpoint `GET /api/mission/waypoints/ros` untuk inspeksi parameter waypoint aktif & status sinkronisasi.
   - [x] Tambah endpoint `POST /api/mission/waypoints/sync` untuk sinkronisasi ulang manual ke ROS 2.
-- [x] **Cicilan 4: Validasi Logika & Script Pengujian**
+- [x] **Cicilan 4: Validasi Logika & Backend Script Testing**
   - [x] Sintaks python terkompilasi bersih (`py_compile` lolos tanpa error).
   - [x] Pengujian modul `ROS2WaypointParamClient` dalam mode simulasi & offline cache sukses.
-  - [x] Menyusun panduan command pengujian end-to-end untuk dijalankan di device target.
+- [x] **Cicilan 5: Fitur Klik Peta & Sinkronisasi Real-Time ke Card Waypoint Plan**
+  - [x] Shared state `plannedWaypoints` dan `isMapPlanningMode` pada `TelemetryContext.jsx`.
+  - [x] Fitur klik pada Map (`LocationLiveCard.jsx`): Mendapatkan koordinat lat/lon dari klik event dan menggambar jalur garis GeoJSON secara dinamis.
+  - [x] Marker bernomor interaktif dengan popup detail lat/lon di atas peta.
+  - [x] Banner & kursor crosshair visual saat mode penambahan waypoint aktif.
+  - [x] Sinkronisasi instan ke Card Waypoint Plan (`WeatherCard.jsx`): Menampilkan daftar waypoint berurutan dengan format Latitude & Longitude presisi 6 digit desimal.
+  - [x] Tombol hapus satuan (delete per waypoint) dan reset rute.
+  - [x] Tombol "Upload ROS 2" untuk deploy langsung parameter waypoint ke `/gps_navigation`.
+  - [x] Vite build frontend terverifikasi berhasil (Exit code 0, 72 modules transformed).
 
 ---
 
@@ -66,31 +79,31 @@ Dokumen ini mencatat rencana, arsitektur, dan rekam jejak cicilan implementasi i
 - Menyusun format payload parameter yang sesuai dengan ROS 2 standard `rcl_interfaces`.
 
 ### [Sesi 2] - Implementasi Modul ROS 2 Parameter Client & C++ Node Update
-1. Dibuat file baru: `web-control-lss-ITS/backend/ros/ros_parameter_client.py`
-   - Berisi singleton `ros2_waypoint_param_client`.
-   - Menggunakan service ROS 2 `/{target_node}/set_parameters` tipe `rcl_interfaces/srv/SetParameters`.
-   - Menghasilkan parameter:
-     - `navigation.waypoints_<trajectory>.count`
-     - `navigation.waypoints_<trajectory>.waypoint_<index>.latitude`
-     - `navigation.waypoints_<trajectory>.waypoint_<index>.longitude`
-     - `navigation.waypoints_<trajectory>.waypoint_<index>.altitude`
-     - `navigation.radius`
-   - Dilengkapi validasi WGS84, timeout handling (3 detik), dan auto fallback jika ROS 2 belum siap.
-2. Dimodifikasi: `main/src/navigation/navigation/gps_nav.cpp`
-   - Node constructor kini mengaktifkan `allow_undeclared_parameters(true)` agar waypoint berapapun jumlahnya bisa di-set saat runtime.
-   - Menggunakan `get_parameter_or` untuk pembacaan nilai yang aman terhadap runtime updates.
+1. Dibuat file: `web-control-lss-ITS/backend/ros/ros_parameter_client.py`
+2. Dimodifikasi: `main/src/navigation/navigation/gps_nav.cpp` (Dynamic parameter declarations & `get_parameter_or`)
 3. Dimodifikasi: `web-control-lss-ITS/backend/services/mission_service.py` & `api/mission.py`
-   - Menambahkan integrasi parameter sync saat `POST /api/mission/waypoints` dipanggil.
-   - Menambahkan rute inspeksi `GET /api/mission/waypoints/ros`.
+
+### [Sesi 3] - Fitur Interaktif Klik Waypoint Map & Sinkronisasi Card Waypoint Plan
+1. **Penyatuan State di `TelemetryContext.jsx`**:
+   - Ditambahkan `plannedWaypoints`, `addPlannedWaypoint`, `removePlannedWaypoint`, `clearPlannedWaypoints`, dan `isMapPlanningMode`.
+   - Fungsi `loadWaypoints` diperluas untuk menerima parameter `trajectory` ('A'/'B') dan `radius`.
+2. **Implementasi Interaktif di `LocationLiveCard.jsx`**:
+   - Menambahkan event listener `map.on('click')` yang secara otomatis menangkap latitude & longitude dan menyimpannya ke daftar jalur.
+   - Mengubah kursor menjadi `crosshair` saat mode aktif.
+   - Mengupdate GeoJSON `mission-route` layer `route-planned` (garis putus-putus beranimasi) secara dinamis dari posisi USV ke seluruh titik waypoint.
+   - Merender marker bernomor dengan highlight warna emas dan tooltip koordinat lat/lon.
+   - Menambahkan banner indikator: `KLIK PETA: Tambah Waypoint (X WP)`.
+3. **Penyempurnaan Tampilan di `WeatherCard.jsx`**:
+   - Menampilkan koordinat nyata `Lat: -7.xxxxxx, Lon: 112.xxxxxx` untuk setiap waypoint yang ditambahkan dari peta.
+   - Dilengkapi tombol hapus (trash) per waypoint.
+   - Tombol `+ Klik Map` untuk aktivasi mode perencanaan rute langsung dari card.
+   - Tombol `Upload ROS 2` yang meneruskan seluruh array waypoint ke backend service `SetParameters`.
 
 ---
 
 ## 4. Panduan Pengujian di Device Target (Testing Steps & Commands)
 
-Berikut adalah urutan command untuk pengujian di device (tanpa build di remote agent):
-
 ### Langkah 1: Compile Node C++ di Device Target
-Jalankan di terminal robot (device asli):
 ```bash
 cd ~/Documents/LSS_02/LSS-02-ITS-Systemcybernetics/main
 source /opt/ros/humble/setup.bash
@@ -111,37 +124,33 @@ chmod +x start_backend.sh
 ./start_backend.sh
 ```
 
-### Langkah 4: Uji Coba Upload Waypoint via REST API di Terminal 3
-Kirimkan HTTP POST ke backend untuk mengunggah waypoint:
+### Langkah 4: Jalankan Frontend Dashboard di Terminal 3
 ```bash
-curl -X POST http://localhost:8000/api/mission/waypoints \
-  -H "Content-Type: application/json" \
-  -d '{
-    "trajectory": "A",
-    "radius": 2.5,
-    "sync_to_ros": true,
-    "waypoints": [
-      {"lat": -7.2825, "lon": 112.7953, "alt": 0.0, "action": "SURVEY"},
-      {"lat": -7.2830, "lon": 112.7960, "alt": 0.0, "action": "PASS"},
-      {"lat": -7.2835, "lon": 112.7970, "alt": 0.0, "action": "DOCK"}
-    ]
-  }'
+cd ~/Documents/LSS_02/LSS-02-ITS-Systemcybernetics/web-control-lss-ITS
+npm run dev
 ```
+Buka browser di `http://localhost:5173`.
 
-### Langkah 5: Verifikasi Parameter di ROS 2
-Periksa apakah parameter sudah berhasil masuk ke node `/gps_navigation`:
+### Langkah 5: Uji Coba Fitur Klik Waypoint di Web Cockpit
+1. Pada card **Location Live** (Map), klik tombol **`+ Klik Waypoint`** di pojok kanan atas map.
+2. Kursor akan berubah menjadi `crosshair` dan muncul banner peringatan kuning di atas peta.
+3. Klik di beberapa titik pada perairan/area misi:
+   - Garis rute putus-putus biru akan otomatis terhubung ke setiap titik yang diklik.
+   - Marker bernomor (1, 2, 3...) akan muncul di titik koordinat.
+4. Perhatikan card **Waypoint Plan** di sebelah kanan:
+   - Setiap titik yang diklik di peta langsung muncul secara real-time di card dengan format **`Lat: -7.xxxxxx, Lon: 112.xxxxxx`**.
+   - Anda dapat menghapus titik tertentu menggunakan ikon tong sampah pada baris waypoint.
+5. Klik tombol **`Upload ROS 2`** pada card Waypoint Plan.
+6. Status akan berubah menjadi `SYNCED TO ROS2`.
+
+### Langkah 6: Verifikasi Parameter di ROS 2 (Terminal 4)
+Periksa apakah titik-titik yang baru saja diklik pada web masuk ke parameter node `/gps_navigation`:
 ```bash
-# Cek semua parameter pada node gps_navigation
+# Cek semua parameter hasil upload dari dashboard web
 ros2 param dump /gps_navigation
 
-# Atau cek nilai spesifik
+# Cek jumlah waypoint dan koordinat waypoint pertama
 ros2 param get /gps_navigation navigation.waypoints_A.count
 ros2 param get /gps_navigation navigation.waypoints_A.waypoint_0.latitude
 ros2 param get /gps_navigation navigation.waypoints_A.waypoint_0.longitude
-ros2 param get /gps_navigation navigation.radius
-```
-
-### Langkah 6: Verifikasi via Endpoint Monitoring Backend
-```bash
-curl -X GET "http://localhost:8000/api/mission/waypoints/ros?trajectory=A"
 ```

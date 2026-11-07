@@ -13,8 +13,8 @@ const DEFAULT_TELEMETRY = {
     lidar: true,
   },
   navigation: {
-    latitude: -7.2825,
-    longitude: 112.7953,
+    latitude: -7.286340,
+    longitude: 112.795933,
     altitude: 1.2,
     heading_deg: 214.0,
     heading_label: '214° SW',
@@ -82,11 +82,21 @@ const DEFAULT_TOPICS = {
   '/sonar/bathymetry_raw': { count: 0, hz: 20.0, latency_ms: 15.0 },
 };
 
+export const DEFAULT_PLANNED_WAYPOINTS = [
+  { id: 'WP-01', name: 'Launch Point', lat: -7.286340, lon: 112.795933, target_speed: 1.5, action: 'PASS' },
+  { id: 'WP-02', name: 'North Transect', lat: -7.2792, lon: 112.8075, target_speed: 1.5, action: 'PASS' },
+  { id: 'WP-03', name: 'Sonar Transect', lat: -7.2928, lon: 112.8141, target_speed: 1.5, action: 'SURVEY' },
+  { id: 'WP-04', name: 'Return Dock', lat: -7.2868, lon: 112.7981, target_speed: 1.5, action: 'DOCK' },
+];
+
 export function TelemetryProvider({ children }) {
   const [telemetry, setTelemetry] = useState(DEFAULT_TELEMETRY);
   const [topics, setTopics] = useState(DEFAULT_TOPICS);
   const [isConnected, setIsConnected] = useState(false);
   const [emergency, setEmergency] = useState(false);
+  const [plannedWaypoints, setPlannedWaypoints] = useState(DEFAULT_PLANNED_WAYPOINTS);
+  const [isMapPlanningMode, setIsMapPlanningMode] = useState(false);
+  const [rosSyncStatus, setRosSyncStatus] = useState('SYNCED');
   const wsRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
   const heartbeatIntervalRef = useRef(null);
@@ -311,18 +321,77 @@ export function TelemetryProvider({ children }) {
     }
   }, [getBackendBaseUrl]);
 
-  const loadWaypoints = useCallback(async (waypoints) => {
+  const addPlannedWaypoint = useCallback((wp) => {
+    setPlannedWaypoints((prev) => {
+      const nextIdx = prev.length + 1;
+      const newWp = {
+        id: `WP-${String(nextIdx).padStart(2, '0')}`,
+        name: wp.name || `Waypoint ${nextIdx}`,
+        lat: Number(wp.lat),
+        lon: Number(wp.lon),
+        alt: Number(wp.alt || 0.0),
+        target_speed: Number(wp.target_speed || 1.5),
+        acceptance_radius: Number(wp.acceptance_radius || 2.5),
+        action: wp.action || 'PASS',
+      };
+      return [...prev, newWp];
+    });
+    setRosSyncStatus('PENDING');
+  }, []);
+
+  const removePlannedWaypoint = useCallback((id) => {
+    setPlannedWaypoints((prev) => {
+      const filtered = prev.filter((wp) => wp.id !== id);
+      // Re-index remaining waypoints nicely
+      return filtered.map((wp, idx) => ({
+        ...wp,
+        id: `WP-${String(idx + 1).padStart(2, '0')}`,
+        name: wp.name.startsWith('Waypoint') ? `Waypoint ${idx + 1}` : wp.name,
+      }));
+    });
+    setRosSyncStatus('PENDING');
+  }, []);
+
+  const clearPlannedWaypoints = useCallback(() => {
+    setPlannedWaypoints([]);
+    setRosSyncStatus('PENDING');
+  }, []);
+
+  const loadWaypoints = useCallback(async (waypoints, trajectory = 'A', radius = 2.5) => {
     try {
+      setRosSyncStatus('SYNCING');
+      const payload = {
+        trajectory,
+        radius,
+        sync_to_ros: true,
+        waypoints: waypoints.map((w, idx) => ({
+          id: idx + 1,
+          lat: Number(w.lat),
+          lon: Number(w.lon),
+          alt: Number(w.alt || 0.0),
+          target_speed: Number(w.target_speed || 1.5),
+          acceptance_radius: Number(w.acceptance_radius || radius || 2.5),
+          action: w.action || 'PASS',
+        })),
+      };
+
       const res = await fetch(`${getBackendBaseUrl()}/api/mission/waypoints`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ waypoints }),
+        body: JSON.stringify(payload),
       });
-      return await res.json();
+      const data = await res.json();
+      setRosSyncStatus('SYNCED');
+      return data;
     } catch (e) {
       console.error('Failed to load waypoints:', e);
+      setRosSyncStatus('ERROR');
     }
   }, [getBackendBaseUrl]);
+
+  const deployPlannedWaypoints = useCallback(async (trajectory = 'A', radius = 2.5) => {
+    return await loadWaypoints(plannedWaypoints, trajectory, radius);
+  }, [loadWaypoints, plannedWaypoints]);
 
   const value = {
     telemetry,
@@ -338,6 +407,16 @@ export function TelemetryProvider({ children }) {
     pauseMission,
     resetMission,
     loadWaypoints,
+    plannedWaypoints,
+    setPlannedWaypoints,
+    addPlannedWaypoint,
+    removePlannedWaypoint,
+    clearPlannedWaypoints,
+    deployPlannedWaypoints,
+    isMapPlanningMode,
+    setIsMapPlanningMode,
+    rosSyncStatus,
+    setRosSyncStatus,
     backendUrl: getBackendBaseUrl(),
   };
 
